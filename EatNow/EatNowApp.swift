@@ -1,32 +1,38 @@
-//
-//  EatNowApp.swift
-//  EatNow
-//
-//  Created by 羅來恩 on 2025/5/5.
-//
-
 import SwiftUI
-import SwiftData
 
 @main
 struct EatNowApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @StateObject private var dataStore = DataStore.shared
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            TabView {
+                HomeView()
+                    .tabItem {
+                        Label("主頁", systemImage: "house")
+                    }
+                ShopListView()
+                    .tabItem {
+                        Label("店家", systemImage: "bag")
+                    }
+                StatsView()
+                    .tabItem {
+                        Label("統計", systemImage: "chart.bar")
+                    }
+                SettingsView()
+                    .tabItem {
+                        Label("設定", systemImage: "gearshape")
+                    }
+            }
+            .environmentObject(dataStore)
         }
-        .modelContainer(sharedModelContainer)
     }
 }
+
+// Preview for ShopListView
+struct ShopListView_Previews: PreviewProvider {
+    static var previews: some View {
+        ShopListView()
+            .environmentObject(DataStore.shared)
+    }
+} 

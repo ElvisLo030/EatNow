@@ -1,10 +1,3 @@
-//
-//  EatNowTests.swift
-//  EatNowTests
-//
-//  Created by 羅來恩 on 2025/5/5.
-//
-
 import Testing
 @testable import EatNow
 

@@ -324,10 +324,10 @@ class DataStore: ObservableObject {
     }
     
     // 為特定店家添加新的菜單項目
-    func addMenuItem(to shopIndex: Int) {
+    func addMenuItem(to shopIndex: Int, name: String = "新菜單項目", price: Int = 100) {
         if shopIndex >= 0 && shopIndex < shops.count {
             withAnimation(.easeInOut) {
-                let newItem = MenuItem(name: "新菜單項目", price: 100)
+                let newItem = MenuItem(name: name, price: price)
                 shops[shopIndex].menuItems.append(newItem)
             }
         }

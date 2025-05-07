@@ -3,14 +3,10 @@ import SwiftUI
 // 店家列表視圖
 struct ShopListView: View {
     @EnvironmentObject private var dataStore: DataStore
-    @State private var path: [NavigationItem] = []
-    @State private var isPresentingNewShop = false
-    @State private var newShopName = ""
-    @State private var isPresentingEditShop = false
-    @State private var editingShopIndex: Int? = nil
-    @State private var editingShopName = ""
+    @State private var path: [ShopNavigationItem] = []
     @State private var isSelecting = false
     @State private var selectedShops: Set<Int> = []
+    @State private var showCSVImport = false
     
     // 將按鈕提取為單獨的視圖以減少複雜性
     private var controlRow: some View {
@@ -26,10 +22,16 @@ struct ShopListView: View {
                 }
             }) {
                 Text(isSelecting ? "取消" : "選取")
+                    .font(.system(.body).weight(.regular))
+                    .foregroundColor(.primary)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(.systemGray5))
+                    .padding(.vertical, 5)
+                    .background(Color(.systemBackground))
                     .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(.systemGray4), lineWidth: 1)
+                    )
             }
             .buttonStyle(BorderlessButtonStyle()) // 防止按鈕事件傳遞
 
@@ -43,38 +45,45 @@ struct ShopListView: View {
                     isSelecting = false
                 }) {
                     Text("批量刪除")
+                        .font(.system(.body).weight(.regular))
                         .foregroundColor(.red)
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color(.systemGray5))
+                        .padding(.vertical, 5)
+                        .background(Color(.systemBackground))
                         .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.red.opacity(0.5), lineWidth: 1)
+                        )
                 }
                 .buttonStyle(BorderlessButtonStyle())
                 .disabled(selectedShops.isEmpty)
+                .opacity(selectedShops.isEmpty ? 0.5 : 1)
             }
             
-            // 新增按鈕，只在非選取模式中顯示
+            // 在非選取模式下只顯示匯入按鈕
             if !isSelecting {
+                // 匯入按鈕
                 Button {
-                    isPresentingNewShop = true
+                    showCSVImport = true
                 } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 18))
-                        .padding(8)
-                        .background(Color.accentColor)
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: 16))
                         .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.blue)
                         .clipShape(Circle())
                 }
-                .buttonStyle(BorderlessButtonStyle()) // 防止按鈕事件傳遞
+                .buttonStyle(BorderlessButtonStyle())
             }
         }
-        .padding(.vertical, 2)
-        .padding(.horizontal, 8) // 增加整個控制列的水平內邊距
+        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
     }
     
     // 選擇模式的店家行視圖
     private func selectingShopRow(index: Int) -> some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             Button(action: {
                 if selectedShops.contains(index) {
                     selectedShops.remove(index)
@@ -83,196 +92,102 @@ struct ShopListView: View {
                 }
             }) {
                 Image(systemName: selectedShops.contains(index) ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundColor(selectedShops.contains(index) ? .blue : .gray.opacity(0.5))
+                    .symbolRenderingMode(.hierarchical)
             }
+            .buttonStyle(BorderlessButtonStyle())
+            
             Text(dataStore.shops[index].name)
-                .font(.title3)
+                .font(.body)
+                .fontWeight(.regular)
+            
             Spacer()
+            
             Text("\(dataStore.shops[index].menuItems.count) 項商品")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
-        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .padding(.vertical, 10)
         .padding(.horizontal, 16)
-        .padding(.horizontal)
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemBackground))
-                .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
-        )
-        .listRowSeparator(.hidden)
     }
     
     // 正常模式的店家行視圖
     private func normalShopRow(index: Int) -> some View {
-        NavigationLink(value: NavigationItem.shop(index: index)) {
-            HStack(spacing: 16) {
+        NavigationLink(value: ShopNavigationItem.shop(index: index)) {
+            HStack {
                 Text(dataStore.shops[index].name)
-                    .font(.title3)
+                    .font(.body)
+                    .fontWeight(.regular)
+                
                 Spacer()
+                
                 Text("\(dataStore.shops[index].menuItems.count) 項商品")
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundColor(.secondary)
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 16)
-            .padding(.horizontal)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.systemBackground))
-                    .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
-            )
-        }
-        .listRowSeparator(.hidden)
-        .swipeActions(edge: .trailing) {
-            Button(role: .destructive) {
-                withAnimation {
-                    dataStore.deleteShop(at: IndexSet(integer: index))
-                }
-            } label: {
-                Label("刪除", systemImage: "trash")
-            }
         }
     }
 
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
-                Color(.systemGroupedBackground)
-                    .ignoresSafeArea()
+                Color(.systemGroupedBackground).ignoresSafeArea()
+                
                 VStack(spacing: 0) {
-                    // 控制列
                     controlRow
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(.systemBackground))
+                        .background(Color(.systemGroupedBackground))
                     
-                    // 店家列表
                     List {
                         ForEach(dataStore.shops.indices, id: \.self) { index in
                             if isSelecting {
                                 selectingShopRow(index: index)
+                                    .listRowBackground(Color(.systemBackground))
                             } else {
                                 normalShopRow(index: index)
+                                    .listRowBackground(Color(.systemBackground))
                             }
                         }
+                        .onDelete { indexSet in
+                            dataStore.deleteShop(at: indexSet)
+                        }
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                }
-                .navigationTitle("店家列表")
-                .sheet(isPresented: $isPresentingNewShop) {
-                    addNewShopSheet
-                }
-                .sheet(isPresented: $isPresentingEditShop) {
-                    editShopNameSheet
-                }
-                .navigationDestination(for: NavigationItem.self) { item in
-                    switch item {
-                    case .shop(let idx):
-                        ShopDetailView(shopIndex: idx, path: $path)
-                            .environmentObject(dataStore)
-                    case .menu(let sIdx, let iIdx):
-                        MenuItemEditView(shopIndex: sIdx, itemIndex: iIdx)
-                            .environmentObject(dataStore)
-                    case .customFoods:
-                        EmptyView() // 不再使用自定義食物視圖
-                    }
+                    .listStyle(.insetGrouped)
+                    .background(Color(.systemGroupedBackground))
                 }
             }
-        }
-    }
-    
-    // 新增店家的表單視圖
-    private var addNewShopSheet: some View {
-        NavigationStack {
-            Form {
-                TextField("店家名稱", text: $newShopName)
-                Button("新增店家") {
-                    dataStore.addShop()
-                    isPresentingNewShop = false
-                    if let idx = dataStore.shops.firstIndex(where: { $0.name == "新店家" }) {
-                        dataStore.shops[idx].name = newShopName
-                        path.append(.shop(index: idx))
-                    }
-                    newShopName = ""
-                }
-                .disabled(newShopName.isEmpty)
+            .navigationTitle("店家列表")
+            .sheet(isPresented: $showCSVImport) {
+                CSVImportView(importOnly: true)
+                    .environmentObject(dataStore)
             }
-            .navigationTitle("新增店家")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .keyboard) {
-                    HStack {
-                        Button("取消") {
-                            newShopName = ""
-                            UIApplication.shared.endEditing()
-                        }
-                        Spacer()
-                        Button("確定") {
-                            dataStore.addShop()
-                            isPresentingNewShop = false
-                            if let idx = dataStore.shops.firstIndex(where: { $0.name == "新店家" }) {
-                                dataStore.shops[idx].name = newShopName
-                                path.append(.shop(index: idx))
-                            }
-                            newShopName = ""
-                            UIApplication.shared.endEditing()
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-            }
-        }
-    }
-    
-    // 編輯店家名稱的表單視圖
-    private var editShopNameSheet: some View {
-        Group {
-            if let idx = editingShopIndex {
-                NavigationStack {
-                    Form {
-                        TextField("新名稱", text: $editingShopName)
-                        Button("儲存") {
-                            dataStore.shops[idx].name = editingShopName
-                            isPresentingEditShop = false
-                        }
-                        .disabled(editingShopName.isEmpty)
-                    }
-                    .navigationTitle("重命名店家")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .keyboard) {
-                            HStack {
-                                Button("取消") {
-                                    editingShopName = ""
-                                    isPresentingEditShop = false
-                                    UIApplication.shared.endEditing()
-                                }
-                                Spacer()
-                                Button("確定") {
-                                    if let idx = editingShopIndex {
-                                        dataStore.shops[idx].name = editingShopName
-                                    }
-                                    isPresentingEditShop = false
-                                    UIApplication.shared.endEditing()
-                                }
-                            }
-                            .padding(.horizontal)
-                        }
-                    }
+            .navigationDestination(for: ShopNavigationItem.self) { item in
+                switch item {
+                case .shop(let idx):
+                    ShopDetailView(shopIndex: idx, path: $path)
+                        .environmentObject(dataStore)
+                case .menu(let sIdx, let iIdx):
+                    MenuItemEditView(shopIndex: sIdx, itemIndex: iIdx)
+                        .environmentObject(dataStore)
+                case .newMenuItem(let sIdx):
+                    NewMenuItemView(shopIndex: sIdx)
+                        .environmentObject(dataStore)
+                case .customFoods:
+                    EmptyView() // 不再使用自定義食物視圖
                 }
             }
         }
     }
 }
 
-// 店家詳細資訊視圖
+// 修改 ShopDetailView 結構體
 struct ShopDetailView: View {
     @EnvironmentObject private var dataStore: DataStore
     let shopIndex: Int
-    @Binding var path: [NavigationItem]
+    @Binding var path: [ShopNavigationItem]
     @State private var isEditingName = false
     @FocusState private var shopNameFieldIsFocused: Bool
 
@@ -299,7 +214,7 @@ struct ShopDetailView: View {
                                 Text(shop.name)
                                     .font(.title3.bold())
                                 Spacer()
-                                Button("編輯") {
+                                Button("") {
                                     isEditingName = true
                                     shopNameFieldIsFocused = true
                                 }
@@ -307,10 +222,12 @@ struct ShopDetailView: View {
                         }
                     }
 
+                    // 移除原本的新增菜單項目 Section
+
                     // 菜單清單
                     Section(header: Text("菜單列表")) {
                         ForEach(shop.menuItems.indices, id: \.self) { idx in
-                            NavigationLink(value: NavigationItem.menu(shopIndex: shopIndex, itemIndex: idx)) {
+                            NavigationLink(value: ShopNavigationItem.menu(shopIndex: shopIndex, itemIndex: idx)) {
                                 HStack {
                                     Text(shop.menuItems[idx].name)
                                     Spacer()
@@ -324,22 +241,25 @@ struct ShopDetailView: View {
                         }
                         .animation(.easeInOut, value: shop.menuItems)
                     }
-
-                    // 新增菜單項目
-                    Section {
-                        Button("新增菜單項目") {
-                            dataStore.addMenuItem(to: shopIndex)
-                            let newIndex = dataStore.shops[shopIndex].menuItems.count - 1
-                            path.append(.menu(shopIndex: shopIndex, itemIndex: newIndex))
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
                 }
             }
             .ignoresSafeArea(.keyboard)
             .navigationTitle("菜單管理")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // 修改 ShopDetailView 的工具列按鈕
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        // 不再直接新增資料，只是導航到新建項目頁面
+                        path.append(.newMenuItem(shopIndex: shopIndex))
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus")
+                        }
+                    }
+                }
+                
+                // 保留原有的鍵盤工具列
                 ToolbarItem(placement: .keyboard) {
                     HStack {
                         Button("取消") {
@@ -428,5 +348,78 @@ struct MenuItemEditView: View {
                 }
             }
         )
+    }
+}
+
+// 將 NavigationItem 改名為 ShopNavigationItem
+enum ShopNavigationItem: Hashable {
+    case shop(index: Int)
+    case menu(shopIndex: Int, itemIndex: Int)
+    case newMenuItem(shopIndex: Int)
+    case customFoods
+}
+
+// 添加新的 NewMenuItemView 結構體
+struct NewMenuItemView: View {
+    @EnvironmentObject private var dataStore: DataStore
+    let shopIndex: Int
+    @Environment(\.dismiss) private var dismiss
+    @State private var itemName: String = ""
+    @State private var itemPrice: String = ""
+    @FocusState private var itemNameFieldIsFocused: Bool
+    
+    var body: some View {
+        ZStack {
+            Color.clear.onTapGesture { UIApplication.shared.endEditing() }
+            Form {
+                Section(header: Text("商品資訊")) {
+                    TextField("商品名稱", text: $itemName)
+                        .focused($itemNameFieldIsFocused)
+                    TextField("商品價格", text: $itemPrice)
+                        .keyboardType(.numberPad)
+                }
+
+                Section {
+                    Button("新增商品") {
+                        if let price = Int(itemPrice), !itemName.isEmpty {
+                            // 只有當用戶點擊「新增商品」按鈕時才實際添加數據
+                            dataStore.addMenuItem(to: shopIndex, name: itemName, price: price)
+                        }
+                        dismiss()
+                    }
+                    .disabled(itemName.isEmpty || itemPrice.isEmpty)
+                    .frame(maxWidth: .infinity)
+                    .foregroundColor(itemName.isEmpty || itemPrice.isEmpty ? .gray : .blue)
+                }
+            }
+        }
+        .ignoresSafeArea(.keyboard)
+        .navigationTitle("新增商品")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            // 預設聚焦在商品名稱欄位
+            itemNameFieldIsFocused = true
+        }
+        .toolbar {
+            ToolbarItem(placement: .keyboard) {
+                HStack {
+                    Button("取消") {
+                        dismiss()
+                        UIApplication.shared.endEditing()
+                    }
+                    Spacer()
+                    Button("確定") {
+                        if let price = Int(itemPrice), !itemName.isEmpty {
+                            // 只有當用戶點擊「確定」按鈕且輸入有效時才添加數據
+                            dataStore.addMenuItem(to: shopIndex, name: itemName, price: price)
+                            dismiss()
+                        }
+                        UIApplication.shared.endEditing()
+                    }
+                    .disabled(itemName.isEmpty || itemPrice.isEmpty)
+                }
+                .padding(.horizontal)
+            }
+        }
     }
 }

@@ -12,8 +12,8 @@ struct StatsView: View {
                 // 頂部切換標籤
                 Picker("統計類型", selection: $selectedTab) {
                     Text("總覽").tag(0)
-                    Text("個人").tag(1)
-                    Text("團體").tag(2)
+                    Text("食物").tag(1)
+                    Text("店家").tag(2)
                     Text("食物排名").tag(3)
                 }
                 .pickerStyle(SegmentedPickerStyle())
@@ -51,7 +51,7 @@ struct OverviewStatsView: View {
                 StatsCard(title: "總使用統計") {
                     HStack(spacing: 20) {
                         StatItemView(
-                            icon: "shuffle",
+                            icon: "dot.circle.and.hand.point.up.left.fill",
                             value: "\(dataStore.personalRandomCount + dataStore.groupRandomCount)",
                             title: "總點擊次數"
                         )
@@ -64,8 +64,8 @@ struct OverviewStatsView: View {
                     }
                 }
                 
-                // 卡片2：個人 vs 團體使用比例
-                StatsCard(title: "個人 vs 團體使用比例") {
+                // 卡片2：食物 vs 店家使用比例
+                StatsCard(title: "食物 vs 店家使用比例") {
                     let personalCount = dataStore.personalRandomCount
                     let groupCount = dataStore.groupRandomCount
                     let total = personalCount + groupCount
@@ -102,13 +102,13 @@ struct OverviewStatsView: View {
                             .frame(height: 200)
                             
                             HStack(spacing: 20) {
-                                ChartLegend(color: .blue, text: "個人模式")
-                                ChartLegend(color: .purple, text: "團體模式")
+                                ChartLegend(color: .blue, text: "食物模式")
+                                ChartLegend(color: .purple, text: "店家模式")
                             }
-                    } else {
+                        } else {
                             // iOS 16以下的替代UI
                             VStack(spacing: 15) {
-                                Text("個人模式: \(personalCount)次 (\(Int(Double(personalCount) / Double(total) * 100))%)")
+                                Text("食物模式: \(personalCount)次 (\(Int(Double(personalCount) / Double(total) * 100))%)")
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.leading)
                                     .foregroundColor(.blue)
@@ -128,7 +128,7 @@ struct OverviewStatsView: View {
                                 }
                                 .frame(height: 20)
                                 
-                                Text("團體模式: \(groupCount)次 (\(Int(Double(groupCount) / Double(total) * 100))%)")
+                                Text("店家模式: \(groupCount)次 (\(Int(Double(groupCount) / Double(total) * 100))%)")
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.leading)
                                     .foregroundColor(.purple)
@@ -147,9 +147,9 @@ struct OverviewStatsView: View {
                                     }
                                 }
                                 .frame(height: 20)
-                        }
+                            }
                             .frame(height: 200)
-                }
+                        }
                     } else {
                         Text("尚無使用數據")
                             .foregroundColor(.secondary)
@@ -174,9 +174,9 @@ struct OverviewStatsView: View {
                         Text("尚無食物選擇記錄")
                             .foregroundColor(.secondary)
                             .padding()
-        }
-    }
-}
+                    }
+                }
+            }
             .padding()
         }
     }
@@ -189,8 +189,8 @@ struct PersonalStatsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // 個人模式使用統計
-                StatsCard(title: "個人模式使用統計") {
+                // 卡片1：食物模式使用統計
+                StatsCard(title: "食物模式使用統計") {
                     VStack {
                         HStack(spacing: 20) {
                             StatItemView(
@@ -240,15 +240,15 @@ struct PersonalStatsView: View {
                                         )
                                         .frame(width: min(CGFloat(conversionRate) / 100 * geometry.size.width, geometry.size.width), height: 8)
                                         .cornerRadius(4)
+                                }
                             }
-                        }
                             .frame(height: 8)
+                        }
                     }
                 }
-                }
                 
-                // 使用趨勢圖（這裡簡單模擬，實際應用中應該使用真實的時間序列數據）
-                StatsCard(title: "個人使用趨勢") {
+                // 使用趨勢圖
+                StatsCard(title: "決定採納趨勢") {
                     if dataStore.personalRandomCount > 0 {
                         if #available(iOS 16.0, *) {
                             Chart {
@@ -290,9 +290,9 @@ struct PersonalStatsView: View {
                         Text("尚無使用數據")
                             .foregroundColor(.secondary)
                             .frame(height: 200)
-        }
-    }
-}
+                    }
+                }
+            }
             .padding()
         }
     }
@@ -305,8 +305,8 @@ struct GroupStatsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // 團體模式使用統計
-                StatsCard(title: "團體模式使用統計") {
+                // 店家模式使用統計
+                StatsCard(title: "店家模式使用統計") {
                     VStack {
                         HStack(spacing: 20) {
                             StatItemView(
@@ -363,8 +363,8 @@ struct GroupStatsView: View {
                     }
                 }
                 
-                // 團體店家選擇分布
-                StatsCard(title: "團體店家選擇分布") {
+                // 店家選擇分布
+                StatsCard(title: "店家選擇分布") {
                     if dataStore.shopSelections.isEmpty {
                         Text("尚無店家選擇記錄")
                             .foregroundColor(.secondary)
@@ -382,8 +382,8 @@ struct GroupStatsView: View {
                                     .foregroundStyle(
                                         Color(hue: Double(index) / Double(sortedShops.count), saturation: 0.8, brightness: 0.8)
                                     )
+                                }
                             }
-                        }
                             .frame(height: min(CGFloat(sortedShops.count * 40 + 40), 200))
                         } else {
                             // iOS 16以下的替代UI
@@ -458,7 +458,7 @@ struct FoodRankingView: View {
                                 
                                 if index < min(4, sortedFood.count - 1) {
                                     Divider()
-                }
+                                }
                             }
                         }
                         .padding()
@@ -534,8 +534,8 @@ struct FoodRankingView: View {
                 }
             }
             .padding()
-                        }
-                    }
+        }
+    }
 }
 
 // MARK: - 輔助組件
@@ -555,7 +555,7 @@ struct StatsCard<Content: View>: View {
                 .foregroundColor(.primary)
             
             content
-            }
+        }
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(12)

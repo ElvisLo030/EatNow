@@ -8,10 +8,10 @@ struct CSVImportView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var importSuccess = false
-    @State private var showShareSheet = false
-    @State private var exportedFileURL: URL?
     @State private var isShowingDocumentPicker = false
     @FocusState private var textEditorFocused: Bool
+    
+    var importOnly: Bool = false
     
     var body: some View {
         NavigationStack {
@@ -20,7 +20,7 @@ struct CSVImportView: View {
                     Text("請依照以下格式填寫：店家名稱,品項名稱,價格")
                         .font(.caption)
                     
-                    Button("查看範例") {
+                    Button("匯入範例資料") {
                         csvText = CSVHandler.getExampleCSV()
                     }
                     .foregroundColor(.blue)
@@ -43,16 +43,22 @@ struct CSVImportView: View {
                     }
                     .disabled(csvText.isEmpty)
                 }
-                
-                Section(header: Text("匯出目前店家資料")) {
-                    Button("匯出為CSV") {
-                        exportCurrentData()
-                    }
-                    .foregroundColor(.blue)
-                }
             }
             .navigationTitle("店家資料匯入")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("儲存") {
+                        importCSVData()
+                    }
+                    .disabled(csvText.isEmpty)
+                }
+                
                 ToolbarItem(placement: .keyboard) {
                     HStack {
                         Button("取消") {
@@ -80,11 +86,6 @@ struct CSVImportView: View {
                 Button("確定") { dismiss() }
             } message: {
                 Text("店家資料已成功匯入")
-            }
-            .sheet(isPresented: $showShareSheet) {
-                if let url = exportedFileURL {
-                    ShareSheet(activityItems: [url])
-                }
             }
             .sheet(isPresented: $isShowingDocumentPicker) {
                 DocumentPicker { url in
@@ -118,26 +119,6 @@ struct CSVImportView: View {
             importSuccess = true
         case .failure(let error):
             errorMessage = error.errorDescription ?? "匯入失敗"
-            showError = true
-        }
-    }
-    
-    // 匯出目前資料
-    private func exportCurrentData() {
-        let csvContent = CSVHandler.exportToCSV(shops: dataStore.shops)
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
-        let dateString = dateFormatter.string(from: Date())
-        let filename = "EatNow_Shops_\(dateString).csv"
-        
-        let result = CSVHandler.saveCSVToFile(csv: csvContent, filename: filename)
-        
-        switch result {
-        case .success(let fileURL):
-            exportedFileURL = fileURL
-            showShareSheet = true
-        case .failure(let error):
-            errorMessage = error.errorDescription ?? "匯出失敗"
             showError = true
         }
     }
@@ -187,4 +168,4 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-} 
+}

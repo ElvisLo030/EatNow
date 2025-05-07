@@ -57,7 +57,7 @@ struct CSVHandler {
     // 從URL加載CSV文件
     static func loadCSVFromFile(url: URL) -> Result<[Shop], CSVError> {
         do {
-            let csvString = try String(contentsOf: url)
+            let csvString = try String(contentsOf: url, encoding: .utf8)
             return parseCSV(text: csvString)
         } catch {
             return .failure(.fileReadError)
@@ -95,7 +95,7 @@ struct CSVHandler {
     static func getExampleCSV() -> String {
         // 嘗試從Resources資源目錄讀取
         if let path = Bundle.main.path(forResource: "ExampleCSV", ofType: "txt"),
-           let content = try? String(contentsOfFile: path) {
+           let content = try? String(contentsOfFile: path, encoding: .utf8) {
             return content
         }
         

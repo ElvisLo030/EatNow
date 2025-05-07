@@ -1,10 +1,3 @@
-//
-//  EatNowUITests.swift
-//  EatNowUITests
-//
-//  Created by 羅來恩 on 2025/5/5.
-//
-
 import XCTest
 
 final class EatNowUITests: XCTestCase {

@@ -2,15 +2,17 @@ import SwiftUI
 import UIKit
 
 struct HomeView: View {
-    // 範例狀態，實際可改以 ViewModel 來源
     @State private var recommendedItem: (name: String, price: Int) = ("按下按鈕解決選擇障礙！", 0)
-    @State private var recommendedShop: String = "按下按鈕決定！"
+    @State private var recommendedShop: String = "別再問要吃什麼了 戳下去吧！"
     @State private var recommendedItemShopName: String = ""
     @State private var selectedMode: Int = 0 // 0: 個人, 1: 團體
     @State private var showEatingAlert = false // 顯示吃的提示框
     @State private var tempPersonalClickCount: Int = 0 // 臨時記錄個人模式點擊次數
     @State private var tempGroupClickCount: Int = 0 // 臨時記錄團體模式點擊次數
     @State private var currentClickCount: Int = 0 // 用於顯示在警告中的點擊次數
+    @State private var selectedFoodName: String = "" // 用戶選擇的食物名稱
+    @State private var selectedShopName: String = "" // 用戶選擇的店家名稱
+    @State private var showingHelp = false // 控制是否顯示使用說明
     
     // 震動回饋生成器
     let impactFeedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
@@ -20,6 +22,7 @@ struct HomeView: View {
     var body: some View {
         NavigationView {
             ZStack {
+                Color(.systemGroupedBackground).edgesIgnoringSafeArea(.all)
                 Color.clear.onTapGesture { UIApplication.shared.endEditing() }
                 VStack {
                     // 標題區塊 - 頂部
@@ -31,13 +34,7 @@ struct HomeView: View {
                         
                         Text(selectedMode == 0 ? "今天要吃什麼？" : "要去哪裡吃？")
                             .font(.system(size: 32, weight: .bold))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.blue, .purple],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
+                            .foregroundColor(.primary)
                             .shadow(color: .gray.opacity(0.3), radius: 2, x: 1, y: 1)
                     }
                     .frame(maxWidth: .infinity)
@@ -49,8 +46,8 @@ struct HomeView: View {
                     VStack(spacing: 30) {
                         // 切換個人/團體模式
                         Picker("", selection: $selectedMode) {
-                            Text("個人").tag(0)
-                            Text("團體").tag(1)
+                            Text("食物").tag(0)
+                            Text("店家").tag(1)
                         }
                         .pickerStyle(SegmentedPickerStyle())
                         .padding(.horizontal)
@@ -58,7 +55,8 @@ struct HomeView: View {
                         // 隨機選擇顯示
                         ZStack {
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(.systemGray6))
+                                .fill(Color(.secondarySystemBackground))
+                                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
                                 .frame(height: 150)
                             
                             VStack(spacing: 8) {
@@ -152,9 +150,9 @@ struct HomeView: View {
                                 }
                             } label: {
                                 HStack {
-                                    Image(systemName: selectedMode == 0 ? "shuffle" : "mappin.and.ellipse")
+                                    Image(systemName: selectedMode == 0 ? "dot.circle.and.hand.point.up.left.fill" : "dot.circle.and.hand.point.up.left.fill")
                                         .font(.title2)
-                                    Text(selectedMode == 0 ? "隨機推薦" : "隨機店家")
+                                    Text(selectedMode == 0 ? "戳下去 推薦食物給你！" : "戳下去！")
                                         .font(.title)
                                         .fontWeight(.semibold)
                                 }
@@ -162,7 +160,7 @@ struct HomeView: View {
                                 .background(dataStore.shops.isEmpty ? Color.gray : Color.accentColor)
                                 .foregroundColor(.white)
                                 .cornerRadius(12)
-                                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+                                .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
                             }
                             .buttonStyle(PressableButtonStyle()) // 使用自定義按鈕樣式
                             .disabled(dataStore.shops.isEmpty)
@@ -196,7 +194,7 @@ struct HomeView: View {
                                 
                                 // 先判斷是否有已推薦的項目
                                 if (selectedMode == 0 && recommendedItem.name != "按下按鈕解決選擇障礙！") ||
-                                   (selectedMode == 1 && recommendedShop != "按下按鈕決定！" && recommendedShop != "尚無店家") {
+                                   (selectedMode == 1 && recommendedShop != "別再問要吃什麼了 戳下去吧！" && recommendedShop != "尚無店家") {
                                     
                                     // 保存當前點擊次數用於顯示
                                     currentClickCount = selectedMode == 0 ? tempPersonalClickCount : tempGroupClickCount
@@ -212,6 +210,9 @@ struct HomeView: View {
                                         let foodName = recommendedItem.name
                                         dataStore.foodSelections[foodName, default: 0] += 1
                                         
+                                        // 保存選擇的食物名稱
+                                        selectedFoodName = foodName
+                                        
                                         // 重置臨時點擊計數器
                                         tempPersonalClickCount = 0
                                         
@@ -224,6 +225,9 @@ struct HomeView: View {
                                         
                                         // 記錄選擇的店家
                                         dataStore.shopSelections[recommendedShop, default: 0] += 1
+                                        
+                                        // 保存選擇的店家名稱
+                                        selectedShopName = recommendedShop
                                         
                                         // 重置臨時點擊計數器
                                         tempGroupClickCount = 0
@@ -251,7 +255,7 @@ struct HomeView: View {
                                 )
                                 .foregroundColor(.white)
                                 .cornerRadius(12)
-                                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+                                .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
                             }
                             .buttonStyle(PressableButtonStyle()) // 使用自定義按鈕樣式
                             .padding(.horizontal)
@@ -266,14 +270,37 @@ struct HomeView: View {
                     }
                     .padding(.bottom, 30)
                 }
-                .navigationBarTitle("EatNow!!!")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        HStack {
+                            Text("EatNow!!!")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                showingHelp = true
+                            }) {
+                                Image(systemName: "questionmark.circle")
+                                    .font(.title3)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 8)
+                    }
+                }
             }
             .alert(isPresented: $showEatingAlert) {
                 Alert(
-                    title: Text("太棒了！"),
-                    message: Text("你點選了\(currentClickCount)次按鈕，成功解決了一次選擇障礙"),
-                    dismissButton: .default(Text("好的"))
+                    title: Text(selectedMode == 0 ? "去吃\(selectedFoodName)吧！" : "和大家去\(selectedShopName)吧！"),
+                    message: Text("你戳了\(currentClickCount)次按鈕，\(selectedMode == 0 ? "解決了選擇障礙！" : "幫大家決定吃什麼！")"),
+                    dismissButton: .default(Text("好欸！"))
                 )
+            }
+            .sheet(isPresented: $showingHelp) {
+                HelpView()
             }
             .onAppear {
                 // 預熱震動生成器以減少延遲
@@ -356,10 +383,175 @@ struct MenuView: View {
     }
 }
 
+// 使用說明視圖
+struct HelpView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // 首頁使用說明
+                    HelpSection(
+                        title: "🍔 解決選擇障礙 (首頁)",
+                        content: [
+                            HelpContent(
+                                subtitle: "食物模式",
+                                items: [
+                                    "在首頁選擇「食物」模式",
+                                    "點擊「戳下去 推薦食物給你！」按鈕",
+                                    "查看隨機推薦的食物和價格",
+                                    "滿意選擇後點擊「吃！」按鈕記錄決策"
+                                ]
+                            ),
+                            HelpContent(
+                                subtitle: "店家模式",
+                                items: [
+                                    "在首頁切換至「店家」模式",
+                                    "點擊「戳下去！」隨機選擇一家店",
+                                    "確認推薦店家後點「吃！」完成決策",
+                                    "系統會記錄您的選擇用於統計分析"
+                                ]
+                            )
+                        ]
+                    )
+                    
+                    Divider()
+                    
+                    // 店家管理說明
+                    HelpSection(
+                        title: "🏪 店家與菜單管理",
+                        content: [
+                            HelpContent(
+                                subtitle: "管理店家",
+                                items: [
+                                    "切換到「店家」標籤頁瀏覽所有店家",
+                                    "點擊右上角「+」按鈕手動添加店家",
+                                    "點擊「匯入」按鈕批量導入店家資料",
+                                    "向左滑動店家項目可刪除或編輯"
+                                ]
+                            ),
+                            HelpContent(
+                                subtitle: "管理菜單",
+                                items: [
+                                    "點擊任一店家進入該店菜單管理頁面",
+                                    "點擊「+」添加新菜品及價格",
+                                    "向左滑動菜單項目可刪除或修改",
+                                    "菜單內容會自動保存並用於隨機推薦"
+                                ]
+                            )
+                        ]
+                    )
+                    
+                    Divider()
+                    
+                    // 統計分析說明
+                    HelpSection(
+                        title: "📊 查看使用統計",
+                        items: [
+                            "切換到「統計」標籤頁查看數據分析",
+                            "「總覽」部分顯示使用頻率和決策數據",
+                            "「排行榜」查看您最常選擇的店家和食物",
+                            "統計數據會隨著使用自動更新"
+                        ]
+                    )
+                    
+                    Divider()
+                    
+                    // 設定說明
+                    HelpSection(
+                        title: "⚙️ 設定與資料管理",
+                        items: [
+                            "在「設定」頁可修改個人化偏好",
+                            "點擊「匯出店家資料」分享給朋友",
+                            "支援CSV格式匯入/匯出店家與菜單",
+                            "使用「重設資料」可清除現有資料並重新開始"
+                        ]
+                    )
+                    
+                    // 小技巧提示
+                    HStack {
+                        Image(systemName: "lightbulb.fill")
+                            .foregroundColor(.yellow)
+                        Text("小技巧：首次使用時，建議從設定頁匯入範例資料，快速體驗所有功能！")
+                            .font(.footnote)
+                            .italic()
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
+                }
+                .padding()
+            }
+            .navigationTitle("使用說明")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("關閉") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 幫助部分組件
+struct HelpSection: View {
+    var title: String
+    var content: [HelpContent]? = nil
+    var items: [String]? = nil
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(title)
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            if let content = content {
+                ForEach(content) { section in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(section.subtitle)
+                            .font(.headline)
+                        
+                        ForEach(section.items.indices, id: \.self) { index in
+                            HStack(alignment: .top) {
+                                Text("\(index + 1).")
+                                    .fontWeight(.medium)
+                                Text(section.items[index])
+                            }
+                        }
+                    }
+                    .padding(.leading, 4)
+                }
+            }
+            
+            if let items = items {
+                ForEach(items.indices, id: \.self) { index in
+                    HStack(alignment: .top) {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 8))
+                            .padding(.top, 6)
+                        Text(items[index])
+                    }
+                }
+                .padding(.leading, 4)
+            }
+        }
+    }
+}
+
+// 幫助內容模型
+struct HelpContent: Identifiable {
+    let id = UUID()
+    let subtitle: String
+    let items: [String]
+}
+
 // Preview
 struct HomeView_Previews: PreviewProvider {
     static var previews: some View {
         HomeView()
             .environmentObject(DataStore.shared)
     }
-} 
+}

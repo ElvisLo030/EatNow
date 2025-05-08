@@ -129,4 +129,4 @@ EatNow/
 
 - 開發者：Elvis Lo
 - 聯絡郵箱：elvislo.work@gmail.com
-- 版本：1.2
+- 版本：1.1.1

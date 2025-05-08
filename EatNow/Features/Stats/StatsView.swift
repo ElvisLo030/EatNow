@@ -14,7 +14,7 @@ struct StatsView: View {
                     Text("總覽").tag(0)
                     Text("食物").tag(1)
                     Text("店家").tag(2)
-                    Text("食物排名").tag(3)
+                    Text("成就").tag(3)
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 .padding()
@@ -23,13 +23,13 @@ struct StatsView: View {
                     OverviewStatsView()
                         .tag(0)
                     
-                    PersonalStatsView()
+                    CombinedFoodStatsView()
                         .tag(1)
                     
                     GroupStatsView()
                         .tag(2)
                     
-                    FoodRankingView()
+                    AchievementView()
                         .tag(3)
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
@@ -176,14 +176,34 @@ struct OverviewStatsView: View {
                             .padding()
                     }
                 }
+                
+                // 新增卡片4：最常去的店家
+                StatsCard(title: "最常去的店家") {
+                    if let topShop = dataStore.shopSelections.sorted(by: { $0.value > $1.value }).first {
+                        VStack(spacing: 10) {
+                            Text("🏆 \(topShop.key)")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            
+                            Text("已選擇 \(topShop.value) 次")
+                                .foregroundColor(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                    } else {
+                        Text("尚無店家選擇記錄")
+                            .foregroundColor(.secondary)
+                            .padding()
+                    }
+                }
             }
             .padding()
         }
     }
 }
 
-// MARK: - 個人統計
-struct PersonalStatsView: View {
+// MARK: - 合併食物統計視圖（食物模式 + 食物排名）
+struct CombinedFoodStatsView: View {
     @EnvironmentObject var dataStore: DataStore
     
     var body: some View {
@@ -247,49 +267,113 @@ struct PersonalStatsView: View {
                     }
                 }
                 
-                // 使用趨勢圖
-                StatsCard(title: "決定採納趨勢") {
-                    if dataStore.personalRandomCount > 0 {
+                // 卡片2：食物排名
+                StatsCard(title: "食物排名") {
+                    if dataStore.foodSelections.isEmpty {
+                        Text("尚無食物選擇記錄")
+                            .foregroundColor(.secondary)
+                            .frame(height: 150)
+                    } else {
+                        let sortedFood = dataStore.foodSelections.sorted(by: { $0.value > $1.value })
+                        
+                        VStack(alignment: .leading, spacing: 15) {
+                            ForEach(Array(sortedFood.enumerated().prefix(5)), id: \.element.key) { index, food in
+                                HStack {
+                                    // 名次標誌
+                                    ZStack {
+                                        Circle()
+                                            .fill(index == 0 ? Color.yellow : (index == 1 ? Color.gray : (index == 2 ? Color.orange : Color(.systemGray4))))
+                                            .frame(width: 24, height: 24)
+                                        
+                                        Text("\(index + 1)")
+                                            .font(.caption)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(index < 3 ? .white : .secondary)
+                                    }
+                                    
+                                    Text(food.key)
+                                        .fontWeight(.semibold)
+                                    
+                                    Spacer()
+                                    
+                                    Text("\(food.value) 次")
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                if index < min(4, sortedFood.count - 1) {
+                                    Divider()
+                                }
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+                
+                // 卡片3：食物選擇分布圖
+                StatsCard(title: "食物選擇分布") {
+                    if dataStore.foodSelections.isEmpty {
+                        Text("尚無食物選擇記錄")
+                            .foregroundColor(.secondary)
+                            .frame(height: 200)
+                    } else {
+                        let sortedFood = dataStore.foodSelections.sorted(by: { $0.value > $1.value }).prefix(5)
+                        let total = sortedFood.reduce(0) { $0 + $1.value }
+                        
                         if #available(iOS 16.0, *) {
                             Chart {
-                                LineMark(
-                                    x: .value("日期", 1),
-                                    y: .value("次數", dataStore.personalRandomCount / 2)
-                                )
-                                LineMark(
-                                    x: .value("日期", 2),
-                                    y: .value("次數", dataStore.personalRandomCount / 3)
-                                )
-                                LineMark(
-                                    x: .value("日期", 3),
-                                    y: .value("次數", dataStore.personalRandomCount / 4)
-                                )
-                                LineMark(
-                                    x: .value("日期", 4),
-                                    y: .value("次數", dataStore.personalRandomCount)
-                                )
-                            }
-                            .frame(height: 200)
-                        } else {
-                            // iOS 16以下的替代UI
-                            VStack(spacing: 10) {
-                                Text("使用趨勢圖 (需要iOS 16以上版本)")
-                                    .foregroundColor(.secondary)
-                                
-                                HStack(spacing: 0) {
-                                    Text("總計使用次數：\(dataStore.personalRandomCount)次")
-                                        .foregroundColor(.primary)
-                                        .padding()
-                                        .background(Color(.systemGray6))
-                                        .cornerRadius(8)
+                                ForEach(Array(sortedFood.enumerated()), id: \.element.key) { index, food in
+                                    SectorMark(
+                                        angle: .value("使用次數", food.value),
+                                        innerRadius: .ratio(0.5),
+                                        angularInset: 1.5
+                                    )
+                                    .foregroundStyle(
+                                        Color(hue: Double(index) / Double(sortedFood.count), saturation: 0.8, brightness: 0.8)
+                                    )
+                                    .annotation(position: .overlay) {
+                                        Text("\(Int(Double(food.value) / Double(total) * 100))%")
+                                            .font(.caption)
+                                            .foregroundColor(.white)
+                                            .fontWeight(.bold)
+                                    }
                                 }
                             }
                             .frame(height: 200)
-                        }
-                    } else {
-                        Text("尚無使用數據")
-                            .foregroundColor(.secondary)
+                            
+                            // 圖例
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(sortedFood.enumerated()), id: \.element.key) { index, food in
+                                    ChartLegend(
+                                        color: Color(hue: Double(index) / Double(sortedFood.count), saturation: 0.8, brightness: 0.8),
+                                        text: "\(food.key) (\(food.value)次)"
+                                    )
+                                }
+                            }
+                            .padding(.top)
+                        } else {
+                            // iOS 16以下的替代UI
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("食物選擇比例")
+                                    .font(.headline)
+                                    .padding(.bottom, 5)
+                                
+                                ForEach(Array(sortedFood.enumerated()), id: \.element.key) { index, food in
+                                    HStack {
+                                        Rectangle()
+                                            .fill(Color(hue: Double(index) / Double(sortedFood.count), saturation: 0.8, brightness: 0.8))
+                                            .frame(width: 12, height: 12)
+                                            .cornerRadius(3)
+                                        
+                                        Text("\(food.key): \(food.value)次 (\(Int(Double(food.value) / Double(total) * 100))%)")
+                                            .font(.subheadline)
+                                        
+                                        Spacer()
+                                    }
+                                }
+                            }
+                            .padding()
                             .frame(height: 200)
+                        }
                     }
                 }
             }
@@ -305,7 +389,7 @@ struct GroupStatsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // 店家模式使用統計
+                // 卡片1：店家模式使用統計
                 StatsCard(title: "店家模式使用統計") {
                     VStack {
                         HStack(spacing: 20) {
@@ -363,7 +447,49 @@ struct GroupStatsView: View {
                     }
                 }
                 
-                // 店家選擇分布
+                // 卡片2：店家排名
+                StatsCard(title: "店家排名") {
+                    if dataStore.shopSelections.isEmpty {
+                        Text("尚無店家選擇記錄")
+                            .foregroundColor(.secondary)
+                            .frame(height: 150)
+                    } else {
+                        let sortedShops = dataStore.shopSelections.sorted(by: { $0.value > $1.value })
+                        
+                        VStack(alignment: .leading, spacing: 15) {
+                            ForEach(Array(sortedShops.enumerated().prefix(5)), id: \.element.key) { index, shop in
+                                HStack {
+                                    // 名次標誌
+                                    ZStack {
+                                        Circle()
+                                            .fill(index == 0 ? Color.yellow : (index == 1 ? Color.gray : (index == 2 ? Color.orange : Color(.systemGray4))))
+                                            .frame(width: 24, height: 24)
+                                        
+                                        Text("\(index + 1)")
+                                            .font(.caption)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(index < 3 ? .white : .secondary)
+                                    }
+                                    
+                                    Text(shop.key)
+                                        .fontWeight(.semibold)
+                                    
+                                    Spacer()
+                                    
+                                    Text("\(shop.value) 次")
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                if index < min(4, sortedShops.count - 1) {
+                                    Divider()
+                                }
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+                
+                // 卡片3：店家選擇分布圓餅圖
                 StatsCard(title: "店家選擇分布") {
                     if dataStore.shopSelections.isEmpty {
                         Text("尚無店家選擇記錄")
@@ -371,123 +497,21 @@ struct GroupStatsView: View {
                             .frame(height: 200)
                     } else {
                         let sortedShops = dataStore.shopSelections.sorted(by: { $0.value > $1.value }).prefix(5)
+                        let total = sortedShops.reduce(0) { $0 + $1.value }
                         
                         if #available(iOS 16.0, *) {
                             Chart {
                                 ForEach(Array(sortedShops.enumerated()), id: \.element.key) { index, shop in
-                                    BarMark(
-                                        x: .value("次數", shop.value),
-                                        y: .value("店家", shop.key)
-                                    )
-                                    .foregroundStyle(
-                                        Color(hue: Double(index) / Double(sortedShops.count), saturation: 0.8, brightness: 0.8)
-                                    )
-                                }
-                            }
-                            .frame(height: min(CGFloat(sortedShops.count * 40 + 40), 200))
-                        } else {
-                            // iOS 16以下的替代UI
-                            VStack(alignment: .leading, spacing: 10) {
-                                ForEach(Array(sortedShops.enumerated()), id: \.element.key) { index, shop in
-                                    VStack(alignment: .leading, spacing: 5) {
-                                        Text(shop.key)
-                                            .font(.subheadline)
-                                        
-                                        GeometryReader { geometry in
-                                            ZStack(alignment: .leading) {
-                                                Rectangle()
-                                                    .fill(Color(.systemGray5))
-                                                    .frame(width: geometry.size.width, height: 20)
-                                                    .cornerRadius(5)
-                                                
-                                                Rectangle()
-                                                    .fill(Color(hue: Double(index) / Double(sortedShops.count), saturation: 0.8, brightness: 0.8))
-                                                    .frame(width: CGFloat(shop.value) * 30, height: 20)
-                                                    .cornerRadius(5)
-                                                
-                                                Text("\(shop.value)次")
-                                                    .font(.caption)
-                                                    .foregroundColor(.white)
-                                                    .padding(.leading, 5)
-                                            }
-                                        }
-                                        .frame(height: 20)
-                                    }
-                                }
-                            }
-                            .frame(height: min(CGFloat(sortedShops.count * 40 + 40), 200))
-                        }
-                    }
-                }
-            }
-            .padding()
-        }
-    }
-}
-
-// MARK: - 食物排名
-struct FoodRankingView: View {
-    @EnvironmentObject var dataStore: DataStore
-    
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                StatsCard(title: "食物排名") {
-                    if dataStore.foodSelections.isEmpty {
-                        Text("尚無食物選擇記錄")
-                            .foregroundColor(.secondary)
-                            .frame(height: 200)
-                    } else {
-                        let sortedFood = dataStore.foodSelections.sorted(by: { $0.value > $1.value })
-                        
-                        VStack(alignment: .leading, spacing: 15) {
-                            ForEach(Array(sortedFood.enumerated().prefix(5)), id: \.element.key) { index, food in
-                                HStack {
-                                    Text("\(index + 1).")
-                                        .font(.headline)
-                                        .foregroundColor(.secondary)
-                                    
-                                    Text(food.key)
-                                        .fontWeight(.semibold)
-                                    
-                                    Spacer()
-                                    
-                                    Text("\(food.value) 次")
-                                        .foregroundColor(.secondary)
-                                }
-                                
-                                if index < min(4, sortedFood.count - 1) {
-                                    Divider()
-                                }
-                            }
-                        }
-                        .padding()
-                    }
-                }
-                
-                // 食物選擇分布圖
-                StatsCard(title: "食物選擇分布") {
-                    if dataStore.foodSelections.isEmpty {
-                        Text("尚無食物選擇記錄")
-                            .foregroundColor(.secondary)
-                            .frame(height: 200)
-                    } else {
-                        let sortedFood = dataStore.foodSelections.sorted(by: { $0.value > $1.value }).prefix(5)
-                        let total = sortedFood.reduce(0) { $0 + $1.value }
-                        
-                        if #available(iOS 16.0, *) {
-                            Chart {
-                                ForEach(Array(sortedFood.enumerated()), id: \.element.key) { index, food in
                                     SectorMark(
-                                        angle: .value("使用次數", food.value),
+                                        angle: .value("使用次數", shop.value),
                                         innerRadius: .ratio(0.5),
                                         angularInset: 1.5
                                     )
                                     .foregroundStyle(
-                                        Color(hue: Double(index) / Double(sortedFood.count), saturation: 0.8, brightness: 0.8)
+                                        Color(hue: Double(index) / Double(sortedShops.count), saturation: 0.8, brightness: 0.8)
                                     )
                                     .annotation(position: .overlay) {
-                                        Text("\(Int(Double(food.value) / Double(total) * 100))%")
+                                        Text("\(Int(Double(shop.value) / Double(total) * 100))%")
                                             .font(.caption)
                                             .foregroundColor(.white)
                                             .fontWeight(.bold)
@@ -498,10 +522,10 @@ struct FoodRankingView: View {
                             
                             // 圖例
                             VStack(alignment: .leading, spacing: 8) {
-                                ForEach(Array(sortedFood.enumerated()), id: \.element.key) { index, food in
+                                ForEach(Array(sortedShops.enumerated()), id: \.element.key) { index, shop in
                                     ChartLegend(
-                                        color: Color(hue: Double(index) / Double(sortedFood.count), saturation: 0.8, brightness: 0.8),
-                                        text: "\(food.key) (\(food.value)次)"
+                                        color: Color(hue: Double(index) / Double(sortedShops.count), saturation: 0.8, brightness: 0.8),
+                                        text: "\(shop.key) (\(shop.value)次)"
                                     )
                                 }
                             }
@@ -509,18 +533,18 @@ struct FoodRankingView: View {
                         } else {
                             // iOS 16以下的替代UI
                             VStack(alignment: .leading, spacing: 10) {
-                                Text("食物選擇比例")
+                                Text("店家選擇比例")
                                     .font(.headline)
                                     .padding(.bottom, 5)
                                 
-                                ForEach(Array(sortedFood.enumerated()), id: \.element.key) { index, food in
+                                ForEach(Array(sortedShops.enumerated()), id: \.element.key) { index, shop in
                                     HStack {
                                         Rectangle()
-                                            .fill(Color(hue: Double(index) / Double(sortedFood.count), saturation: 0.8, brightness: 0.8))
+                                            .fill(Color(hue: Double(index) / Double(sortedShops.count), saturation: 0.8, brightness: 0.8))
                                             .frame(width: 12, height: 12)
                                             .cornerRadius(3)
                                         
-                                        Text("\(food.key): \(food.value)次 (\(Int(Double(food.value) / Double(total) * 100))%)")
+                                        Text("\(shop.key): \(shop.value)次 (\(Int(Double(shop.value) / Double(total) * 100))%)")
                                             .font(.subheadline)
                                         
                                         Spacer()

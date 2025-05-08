@@ -66,18 +66,18 @@ struct SettingsView: View {
 
                         HStack {
                             Image(systemName: "text.document.fill")
-                            Link("原始碼", destination: URL(string: "https://github.com/ElvisLo030/EatNow")!)
+                            Link("GitHub", destination: URL(string: "https://github.com/ElvisLo030/EatNow")!)
                         }
                         
                         HStack {
                             Image(systemName: "book.circle")
-                            NavigationLink("GNU GPL v3") {
+                            NavigationLink("LICENSE") {
                                 LicenseView()
                             }
                         }
                         HStack {
                             Image(systemName: "info.circle")
-                            NavigationLink("版本 1.1") {
+                            NavigationLink("版本 1.1.1") {
                                 UpdateHistoryView()
                             }
                         }
@@ -97,7 +97,35 @@ struct SettingsView: View {
 struct UpdateHistoryView: View {
     var body: some View {
         List {
-            Section(header: Text("版本 1.1").font(.headline)) {
+            Section(header: Text("版本 1.1.1").font(.headline)) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("2025年5月8日發布")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Divider()
+                Text("新增功能：")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Group {
+                        BulletPoint(text: "新增成就系統")
+                    }
+
+                    Text("修改和優化：")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(.top, 8)
+                    
+                    Group {
+                        BulletPoint(text: "修改License讀取方式")
+                        BulletPoint(text: "優化統計頁面")
+                    }
+                }
+                .padding(.vertical, 6)  
+            }
+
+            Section(header: Text("版本 1.1 2fbbf8a").font(.headline)) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("2025年5月7日發布")
                         .font(.subheadline)
@@ -128,7 +156,7 @@ struct UpdateHistoryView: View {
                 .padding(.vertical, 6)
             }
             
-            Section(header: Text("版本 1.0").font(.headline)) {
+            Section(header: Text("版本 1.0 ab883ff").font(.headline)) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("2025年5月6日發布")
                         .font(.subheadline)
@@ -136,7 +164,7 @@ struct UpdateHistoryView: View {
                     
                     Divider()
                     
-                    Text("首次發布功能：")
+                    Text("首次發布：")
                         .font(.subheadline)
                         .fontWeight(.medium)
                     
@@ -144,7 +172,7 @@ struct UpdateHistoryView: View {
                         BulletPoint(text: "食物和店家隨機推薦功能")
                         BulletPoint(text: "CSV 資料匯入匯出")
                         BulletPoint(text: "基本使用統計")
-                        BulletPoint(text: "使用者自定義設定")
+                        BulletPoint(text: "使用者檔案設定")
                     }
                 }
                 .padding(.vertical, 6)

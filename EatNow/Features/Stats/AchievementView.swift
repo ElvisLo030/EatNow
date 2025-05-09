@@ -89,7 +89,7 @@ struct AchievementView: View {
                 title: "戳戳達人",
                 description: "總共戳按鈕500次",
                 icon: "hand.point.up.left.fill",
-                progress: min(Double(dataStore.personalRandomCount + dataStore.groupRandomCount) / 100.0, 1.0),
+                progress: min(Double(dataStore.personalRandomCount + dataStore.groupRandomCount) / 500.0, 1.0),
                 unlocked: (dataStore.personalRandomCount + dataStore.groupRandomCount) >= 500,
                 reward: "獨特按鈕動畫效果"
             ),

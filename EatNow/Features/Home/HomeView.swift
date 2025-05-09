@@ -274,7 +274,7 @@ struct HomeView: View {
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         HStack {
-                            Text("EatNow!!!")
+                            Text("Eat Now !")
                                 .font(.headline)
                                 .fontWeight(.bold)
                             
@@ -321,20 +321,13 @@ struct PressableButtonStyle: ButtonStyle {
     }
 }
 
-// 跳轉到自定義食物頁面的連接視圖
+// 跳轉到店家列表頁面的連接視圖
 struct CustomFoodsLinkView: View {
     @EnvironmentObject private var dataStore: DataStore
-    @State private var path: [NavigationItem] = []
-    @State private var isShowingCustomFoods = true
     
     var body: some View {
         ShopListView()
-            .onAppear {
-                // 使用延遲確保頁面已完全加載
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isShowingCustomFoods = true
-                }
-            }
+            .environmentObject(dataStore)
     }
 }
 

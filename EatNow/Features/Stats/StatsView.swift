@@ -8,32 +8,37 @@ struct StatsView: View {
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // 頂部切換標籤
-                Picker("統計類型", selection: $selectedTab) {
-                    Text("總覽").tag(0)
-                    Text("食物").tag(1)
-                    Text("店家").tag(2)
-                    Text("成就").tag(3)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding()
+            ZStack {
+                // 添加與HomeView一致的背景顏色
+                Color(.systemGroupedBackground).edgesIgnoringSafeArea(.all)
                 
-                TabView(selection: $selectedTab) {
-                    OverviewStatsView()
-                        .tag(0)
+                VStack(spacing: 0) {
+                    // 頂部切換標籤
+                    Picker("統計類型", selection: $selectedTab) {
+                        Text("總覽").tag(0)
+                        Text("食物").tag(1)
+                        Text("店家").tag(2)
+                        Text("成就").tag(3)
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    .padding()
                     
-                    CombinedFoodStatsView()
-                        .tag(1)
-                    
-                    GroupStatsView()
-                        .tag(2)
-                    
-                    AchievementView()
-                        .tag(3)
+                    TabView(selection: $selectedTab) {
+                        OverviewStatsView()
+                            .tag(0)
+                        
+                        CombinedFoodStatsView()
+                            .tag(1)
+                        
+                        GroupStatsView()
+                            .tag(2)
+                        
+                        AchievementView()
+                            .tag(3)
+                    }
+                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                    .animation(.easeInOut, value: selectedTab)
                 }
-                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                .animation(.easeInOut, value: selectedTab)
             }
             .navigationTitle("統計")
         }

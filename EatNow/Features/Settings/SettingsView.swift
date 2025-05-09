@@ -77,7 +77,7 @@ struct SettingsView: View {
                         }
                         HStack {
                             Image(systemName: "info.circle")
-                            NavigationLink("版本 1.1.1") {
+                            NavigationLink("版本 1.1.2") {
                                 UpdateHistoryView()
                             }
                         }
@@ -97,6 +97,27 @@ struct SettingsView: View {
 struct UpdateHistoryView: View {
     var body: some View {
         List {
+
+            Section(header: Text("版本 1.1.2").font(.headline)) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("2025年5月9日發布")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Divider()
+                    
+                    Text("修改和優化：")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Group {
+                        BulletPoint(text: "修正部分文本")
+                        BulletPoint(text: "修正成就系統的計算問題")
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+
             Section(header: Text("版本 1.1.1").font(.headline)) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("2025年5月8日發布")

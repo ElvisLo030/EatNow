@@ -1,6 +1,17 @@
 import SwiftUI
 import Charts
 
+// MARK: - 成就模型
+struct Achievement: Identifiable {
+    let id: String
+    let title: String
+    let description: String
+    let icon: String
+    let progress: Double // 0.0 到 1.0
+    let unlocked: Bool
+    let reward: String
+}
+
 // MARK: - 統計頁面
 struct StatsView: View {
     @EnvironmentObject var dataStore: DataStore
@@ -158,7 +169,8 @@ struct OverviewStatsView: View {
                     } else {
                         Text("尚無使用數據")
                             .foregroundColor(.secondary)
-                            .frame(height: 200)
+                            .frame(maxWidth: .infinity, minHeight: 100, idealHeight: 120, maxHeight: .infinity)
+                            .padding(.vertical, 40)
                     }
                 }
                 
@@ -178,7 +190,8 @@ struct OverviewStatsView: View {
                     } else {
                         Text("尚無食物選擇記錄")
                             .foregroundColor(.secondary)
-                            .padding()
+                            .frame(maxWidth: .infinity, minHeight: 100, idealHeight: 120, maxHeight: .infinity)
+                            .padding(.vertical, 40)
                     }
                 }
                 
@@ -198,7 +211,8 @@ struct OverviewStatsView: View {
                     } else {
                         Text("尚無店家選擇記錄")
                             .foregroundColor(.secondary)
-                            .padding()
+                            .frame(maxWidth: .infinity, minHeight: 100, idealHeight: 150, maxHeight: .infinity)
+                            .padding(.vertical, 40)
                     }
                 }
             }
@@ -277,7 +291,8 @@ struct CombinedFoodStatsView: View {
                     if dataStore.foodSelections.isEmpty {
                         Text("尚無食物選擇記錄")
                             .foregroundColor(.secondary)
-                            .frame(height: 150)
+                            .frame(maxWidth: .infinity, minHeight: 100, idealHeight: 150, maxHeight: .infinity)
+                            .padding(.vertical, 40)
                     } else {
                         let sortedFood = dataStore.foodSelections.sorted(by: { $0.value > $1.value })
                         
@@ -319,7 +334,8 @@ struct CombinedFoodStatsView: View {
                     if dataStore.foodSelections.isEmpty {
                         Text("尚無食物選擇記錄")
                             .foregroundColor(.secondary)
-                            .frame(height: 200)
+                            .frame(maxWidth: .infinity, minHeight: 100, idealHeight: 150, maxHeight: .infinity)
+                            .padding(.vertical, 40)
                     } else {
                         let sortedFood = dataStore.foodSelections.sorted(by: { $0.value > $1.value }).prefix(5)
                         let total = sortedFood.reduce(0) { $0 + $1.value }
@@ -457,7 +473,8 @@ struct GroupStatsView: View {
                     if dataStore.shopSelections.isEmpty {
                         Text("尚無店家選擇記錄")
                             .foregroundColor(.secondary)
-                            .frame(height: 150)
+                            .frame(maxWidth: .infinity, minHeight: 100, idealHeight: 150, maxHeight: .infinity)
+                            .padding(.vertical, 40)
                     } else {
                         let sortedShops = dataStore.shopSelections.sorted(by: { $0.value > $1.value })
                         
@@ -499,7 +516,8 @@ struct GroupStatsView: View {
                     if dataStore.shopSelections.isEmpty {
                         Text("尚無店家選擇記錄")
                             .foregroundColor(.secondary)
-                            .frame(height: 200)
+                            .frame(maxWidth: .infinity, minHeight: 100, idealHeight: 150, maxHeight: .infinity)
+                            .padding(.vertical, 40)
                     } else {
                         let sortedShops = dataStore.shopSelections.sorted(by: { $0.value > $1.value }).prefix(5)
                         let total = sortedShops.reduce(0) { $0 + $1.value }
@@ -584,8 +602,10 @@ struct StatsCard<Content: View>: View {
                 .foregroundColor(.primary)
             
             content
+                .frame(maxWidth: .infinity)
         }
         .padding()
+        .frame(minHeight: 150)
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)

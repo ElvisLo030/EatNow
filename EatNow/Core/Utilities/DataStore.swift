@@ -28,6 +28,40 @@ class DataStore: ObservableObject {
         didSet { saveStatsData() }
     }
     
+    // 成就記錄
+    @Published var unlockedAchievements: Set<String> = [] {
+        didSet { saveAchievementData() }
+    }
+    
+    private let achievementDataSaveKey = "eatnow.achievementData"
+    private var achievementDataURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("\(achievementDataSaveKey).json")
+    }
+    
+    private func loadAchievementData() {
+        guard FileManager.default.fileExists(atPath: achievementDataURL.path) else { return }
+        do {
+            let data = try Data(contentsOf: achievementDataURL)
+            let decoder = JSONDecoder()
+            let achievementData = try decoder.decode(Set<String>.self, from: data)
+            self.unlockedAchievements = achievementData
+        } catch {
+            print("無法加載成就數據: \(error.localizedDescription)")
+        }
+    }
+    
+    private func saveAchievementData() {
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            let data = try encoder.encode(unlockedAchievements)
+            try data.write(to: achievementDataURL, options: [.atomicWrite, .completeFileProtection])
+        } catch {
+            print("無法保存成就數據: \(error.localizedDescription)")
+        }
+    }
+    
     private let statsDataSaveKey = "eatnow.statsData"
     private var statsDataURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -93,6 +127,7 @@ class DataStore: ObservableObject {
         totalDecisionsMade = 0
         foodSelections = [:]
         shopSelections = [:]
+        // 不重置成就數據 unlockedAchievements
     }
     
     @Published var shops: [Shop] {
@@ -179,25 +214,36 @@ class DataStore: ObservableObject {
     @Published var userAvatarName: String = "" {
         didSet { saveUserProfile() }
     }
+    
+    // 控制是否啟用特效
+    @Published var effectsEnabled: Bool = false {
+        didSet { saveUserProfile() }
+    }
+    
     private let userProfileSaveKey = "eatnow.userProfile"
     private var userProfileURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
             .appendingPathComponent("\(userProfileSaveKey).json")
     }
+    
     private struct UserProfile: Codable {
         var name: String
         var avatarName: String
+        var effectsEnabled: Bool = false
     }
+    
     private func loadUserProfile() {
         guard FileManager.default.fileExists(atPath: userProfileURL.path) else { return }
         if let data = try? Data(contentsOf: userProfileURL),
            let decoded = try? JSONDecoder().decode(UserProfile.self, from: data) {
             userName = decoded.name
             userAvatarName = decoded.avatarName
+            effectsEnabled = decoded.effectsEnabled
         }
     }
+    
     private func saveUserProfile() {
-        let profile = UserProfile(name: userName, avatarName: userAvatarName)
+        let profile = UserProfile(name: userName, avatarName: userAvatarName, effectsEnabled: effectsEnabled)
         if let data = try? JSONEncoder().encode(profile) {
             try? data.write(to: userProfileURL, options: [.atomicWrite, .completeFileProtection])
         }
@@ -218,6 +264,7 @@ class DataStore: ObservableObject {
         loadUserProfile()
         loadCustomFoods() // 加載自定義食物數據
         loadStatsData() // 加載統計數據
+        loadAchievementData() // 加載成就數據
         // 如果沒有數據，初始化示範數據
         if shops.isEmpty {
             initializeDefaultData()
@@ -226,45 +273,83 @@ class DataStore: ObservableObject {
     
     // 從私有方法改為公開方法，以便從設定頁面導入示範資料
     func initializeDefaultData() {
+        // 嘗試從範例CSV檔案導入資料
+        if let shops = loadShopsFromExampleCSV() {
+            self.shops = shops
+        } else {
+            // 如果CSV導入失敗，使用預設資料作為後備
+            createDefaultShops()
+        }
+        saveData()
+    }
+    
+    // 從樣本CSV檔案中讀取店家資料
+    private func loadShopsFromExampleCSV() -> [Shop]? {
+        guard let csvURL = Bundle.main.url(forResource: "ExampleCSV", withExtension: "txt"),
+              let csvContent = try? String(contentsOf: csvURL, encoding: .utf8) else {
+            print("無法找到或讀取範例CSV檔案")
+            return nil
+        }
+        
+        var shops: [Shop] = []
+        var currentShopName: String = ""
+        var currentShopItems: [MenuItem] = []
+        
+        // 解析CSV檔案
+        let lines = csvContent.components(separatedBy: .newlines)
+        
+        // 跳過標題行
+        for i in 1..<lines.count {
+            let line = lines[i].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+            
+            let columns = line.components(separatedBy: ",")
+            guard columns.count >= 3 else { continue }
+            
+            let shopName = columns[0]
+            let itemName = columns[1]
+            
+            // 確保價格是有效數字
+            guard let price = Int(columns[2]) else { continue }
+            
+            // 如果是新店家，儲存之前的店家並開始新的
+            if shopName != currentShopName {
+                if !currentShopName.isEmpty && !currentShopItems.isEmpty {
+                    shops.append(Shop(name: currentShopName, menuItems: currentShopItems))
+                }
+                currentShopName = shopName
+                currentShopItems = []
+            }
+            
+            // 添加菜單項目
+            currentShopItems.append(MenuItem(name: itemName, price: price))
+        }
+        
+        // 添加最後一個店家
+        if !currentShopName.isEmpty && !currentShopItems.isEmpty {
+            shops.append(Shop(name: currentShopName, menuItems: currentShopItems))
+        }
+        
+        return shops.isEmpty ? nil : shops
+    }
+    
+    // 創建默認店家數據（作為後備選項）
+    private func createDefaultShops() {
         shops = [
             Shop(
-                name: "好好小吃店",
+                name: "測試資料，請刪除此資料後重新匯入",
                 menuItems: [
                     MenuItem(name: "炒麵", price: 80),
                     MenuItem(name: "水餃", price: 60),
                     MenuItem(name: "鍋貼", price: 70),
-                    MenuItem(name: "滷肉飯", price: 50)
-                ]
-            ),
-            Shop(
-                name: "美味餐廳",
-                menuItems: [
-                    MenuItem(name: "漢堡", price: 120),
-                    MenuItem(name: "炸雞排", price: 150),
-                    MenuItem(name: "薯條", price: 60),
-                    MenuItem(name: "沙拉", price: 90)
-                ]
-            ),
-            Shop(
-                name: "樂園麵店",
-                menuItems: [
-                    MenuItem(name: "牛肉麵", price: 160),
-                    MenuItem(name: "陽春麵", price: 70),
-                    MenuItem(name: "餛飩湯", price: 80),
-                    MenuItem(name: "滷蛋", price: 20)
-                ]
-            ),
-            Shop(
-                name: "快樂便當",
-                menuItems: [
+                    MenuItem(name: "滷肉飯", price: 50),
                     MenuItem(name: "雞腿便當", price: 110),
                     MenuItem(name: "排骨便當", price: 100),
                     MenuItem(name: "鱈魚便當", price: 120),
                     MenuItem(name: "素食便當", price: 90)
                 ]
-            )
+            ),
         ]
-        saveData()
     }
     
     // 保存數據到本地 JSON 文件
@@ -312,15 +397,6 @@ class DataStore: ObservableObject {
             return "尚無食物選項"
         }
         return customFoods.randomElement()?.name ?? "未知食品"
-    }
-    
-    // 隨機食品名稱生成
-    func getRandomFoodName() -> String {
-        let foods = [
-            "炒麵", "炸雞排", "沙拉", "漢堡", "水餃", "炸薯條","烤鴨", "握壽司", "鍋貼", "炒飯", "薯條", "三明治","炸豬", "蛋餅", "魚麵線", "咖哩飯", "湯麵", "拉麵"
-        ]
-        
-        return foods.randomElement() ?? "未知食品"
     }
     
     // 為特定店家添加新的菜單項目
@@ -390,5 +466,15 @@ class DataStore: ObservableObject {
         
         let randomItem = randomShop.menuItems.randomElement()!
         return (name: randomItem.name, price: randomItem.price, shopName: randomShop.name)
+    }
+
+    // 添加成就
+    func unlockAchievement(id: String) {
+        unlockedAchievements.insert(id)
+    }
+    
+    // 檢查成就是否解鎖
+    func isAchievementUnlocked(id: String) -> Bool {
+        return unlockedAchievements.contains(id)
     }
 } 

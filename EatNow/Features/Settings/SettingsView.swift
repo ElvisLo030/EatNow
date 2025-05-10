@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 // MARK: - 設定頁面
 struct SettingsView: View {
@@ -14,6 +15,23 @@ struct SettingsView: View {
                 Form {
                     Section(header: Text("個人檔案")) {
                         TextField("使用者名稱", text: $dataStore.userName)
+                    }
+
+                    Section(header: Text("顯示設定")) {
+                        Toggle("啟用視覺特效", isOn: $dataStore.effectsEnabled)
+                            .toggleStyle(SwitchToggleStyle(tint: .blue))
+                            .disabled(!isEffectsUnlocked())
+                        
+                        if !isEffectsUnlocked() {
+                            HStack {
+                                Image(systemName: "lock.fill")
+                                    .foregroundColor(.orange)
+                                Text("達成至少3個成就以解鎖視覺特效")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.top, 4)
+                        }
                     }
 
                     Section(header: Text("資料管理")) {
@@ -92,6 +110,22 @@ struct SettingsView: View {
             }
         }
     }
+    
+    // 檢查是否解鎖視覺特效
+    private func isEffectsUnlocked() -> Bool {
+        return dataStore.shouldUnlockEffects()
+    }
+}
+
+// 為Settings模塊創建一個獨立的Achievement結構體，以避免命名衝突
+struct StatsAchievement: Identifiable {
+    let id: String
+    let title: String
+    let description: String
+    let icon: String
+    let progress: Double
+    let unlocked: Bool
+    let reward: String
 }
 
 // MARK: - 更新歷史頁面

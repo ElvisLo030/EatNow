@@ -9,7 +9,7 @@ struct LicenseView: View {
     var body: some View {
         ScrollView {
             if isLoading {
-                ProgressView("正在從GitHub載入許可證...")
+                ProgressView("正在從GitHub載入LICENSE...")
                     .padding()
             } else if let error = loadError {
                 VStack(spacing: 20) {

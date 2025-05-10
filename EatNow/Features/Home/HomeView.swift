@@ -18,293 +18,337 @@ struct HomeView: View {
     let impactFeedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
     
     @EnvironmentObject private var dataStore: DataStore
+    @StateObject private var effectsController = EffectsController()
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color(.systemGroupedBackground).edgesIgnoringSafeArea(.all)
-                Color.clear.onTapGesture { UIApplication.shared.endEditing() }
-                VStack {
-                    // 標題區塊 - 頂部
-                    VStack(alignment: .center, spacing: 8) {
-                        Text("嗨 \(dataStore.userName.isEmpty ? "新朋友" : dataStore.userName)")
-                            .font(.title2)
-                            .foregroundColor(.secondary)
-                            .fontWeight(.medium)
-                        
-                        Text(selectedMode == 0 ? "今天要吃什麼？" : "要去哪裡吃？")
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(.primary)
-                            .shadow(color: .gray.opacity(0.3), radius: 2, x: 1, y: 1)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal)
-                    .padding(.top, 30)
-                    .padding(.bottom, 20)
-                    
-                    // 功能區塊 - 畫面中央
-                    VStack(spacing: 30) {
-                        // 切換個人/團體模式
-                        Picker("", selection: $selectedMode) {
-                            Text("食物").tag(0)
-                            Text("店家").tag(1)
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
-                        .padding(.horizontal)
-                        
-                        // 隨機選擇顯示
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(.secondarySystemBackground))
-                                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
-                                .frame(height: 150)
+        ZStack {
+            // 主界面
+            NavigationView {
+                ZStack {
+                    Color(.systemGroupedBackground).edgesIgnoringSafeArea(.all)
+                    Color.clear.onTapGesture { UIApplication.shared.endEditing() }
+                    VStack {
+                        // 標題區塊 - 頂部
+                        VStack(alignment: .center, spacing: 8) {
+                            Text("嗨 \(dataStore.userName.isEmpty ? "新朋友" : dataStore.userName)")
+                                .font(.title2)
+                                .foregroundColor(.secondary)
+                                .fontWeight(.medium)
                             
-                            VStack(spacing: 8) {
-                                if selectedMode == 0 {
-                                    if dataStore.shops.isEmpty {
-                                        VStack(spacing: 10) {
-                                            Image(systemName: "exclamationmark.triangle")
-                                                .font(.largeTitle)
-                                                .foregroundColor(.orange)
-                                            
-                                            Text("目前沒有店家資料")
-                                                .font(.headline)
-                                                .multilineTextAlignment(.center)
-                                            
-                                            Text("請先新增店家和菜單")
-                                                .font(.subheadline)
-                                                .foregroundColor(.secondary)
-                                                .multilineTextAlignment(.center)
-                                        }
-                                    } else if recommendedItem.name == "按下按鈕解決選擇障礙！" {
-                                        Text(recommendedItem.name)
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .multilineTextAlignment(.center)
-                                    } else {
-                                        Text(recommendedItemShopName)
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.primary)
-                                            .multilineTextAlignment(.center)
-                                            .padding(.bottom, 4)
-                                        
-                                        Text("\(recommendedItem.name) - \(recommendedItem.price) 元")
-                                            .font(.title3)
-                                            .foregroundColor(.primary)
-                                            .multilineTextAlignment(.center)
-                                    }
-                                } else {
-                                    if dataStore.shops.isEmpty {
-                                        VStack(spacing: 10) {
-                                            Image(systemName: "exclamationmark.triangle")
-                                                .font(.largeTitle)
-                                                .foregroundColor(.orange)
-                                            
-                                            Text("目前沒有店家資料")
-                                                .font(.headline)
-                                                .multilineTextAlignment(.center)
-                                            
-                                            Text("請先新增店家")
-                                                .font(.subheadline)
-                                                .foregroundColor(.secondary)
-                                                .multilineTextAlignment(.center)
-                                        }
-                                    } else {
-                                        Text(recommendedShop)
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .multilineTextAlignment(.center)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal)
-                        }
-                        .padding(.horizontal)
-                        
-                        // 按鈕容器 - 確保所有按鈕寬度一致
-                        VStack(spacing: 30) {
-                            // 隨機按鈕 - 使用ButtonStyle實現更自然的按下效果
-                            Button {
-                                // 觸發震動反饋
-                                impactFeedbackGenerator.prepare()
-                                impactFeedbackGenerator.impactOccurred()
-                                
-                                // 處理業務邏輯
-                                if selectedMode == 0 {
-                                    // 從隨機店家取得隨機菜單項目
-                                    let result = dataStore.getRandomMenuItem()
-                                    recommendedItem = (name: result.name, price: result.price)
-                                    recommendedItemShopName = result.shopName
-                                    
-                                    // 記錄點擊個人隨機按鈕次數
-                                    dataStore.personalRandomCount += 1
-                                    tempPersonalClickCount += 1 // 臨時計數器也+1
-                                } else {
-                                    let shopNames = dataStore.shops.map { $0.name }
-                                    recommendedShop = shopNames.isEmpty ? "尚無店家" : (shopNames.randomElement() ?? "尚無店家")
-                                    
-                                    // 記錄點擊團體隨機按鈕次數
-                                    dataStore.groupRandomCount += 1
-                                    tempGroupClickCount += 1 // 臨時計數器也+1
-                                }
-                            } label: {
-                                HStack {
-                                    Image(systemName: selectedMode == 0 ? "dot.circle.and.hand.point.up.left.fill" : "dot.circle.and.hand.point.up.left.fill")
-                                        .font(.title2)
-                                    Text(selectedMode == 0 ? "戳下去 推薦食物給你！" : "戳下去！")
-                                        .font(.title)
-                                        .fontWeight(.semibold)
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 150)
-                                .background(dataStore.shops.isEmpty ? Color.gray : Color.accentColor)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
-                                .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
-                            }
-                            .buttonStyle(PressableButtonStyle()) // 使用自定義按鈕樣式
-                            .disabled(dataStore.shops.isEmpty)
-                            .padding(.horizontal)
-                            .overlay(
-                                Group {
-                                    if dataStore.shops.isEmpty {
-                                        NavigationLink(destination: ShopListView().environmentObject(dataStore)) {
-                                            Text("請新增資料")
-                                                .font(.caption)
-                                                .padding(6)
-                                                .background(Color.white)
-                                                .foregroundColor(.orange)
-                                                .cornerRadius(4)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 4)
-                                                        .stroke(Color.orange, lineWidth: 1)
-                                                )
-                                        }
-                                        .offset(y: -35)
-                                    }
-                                }
-                            )
-                            
-                            // 吃！按鈕
-                            Button {
-                                // 觸發震動反饋 - 使用不同的震動模式
-                                let successFeedbackGenerator = UINotificationFeedbackGenerator()
-                                successFeedbackGenerator.prepare()
-                                successFeedbackGenerator.notificationOccurred(.success)
-                                
-                                // 先判斷是否有已推薦的項目
-                                if (selectedMode == 0 && recommendedItem.name != "按下按鈕解決選擇障礙！") ||
-                                   (selectedMode == 1 && recommendedShop != "別再問要吃什麼了 戳下去吧！" && recommendedShop != "尚無店家") {
-                                    
-                                    // 保存當前點擊次數用於顯示
-                                    currentClickCount = selectedMode == 0 ? tempPersonalClickCount : tempGroupClickCount
-                                    
-                                    // 記錄解決選擇障礙次數
-                                    dataStore.totalDecisionsMade += 1
-                                    
-                                    if selectedMode == 0 {
-                                        // 記錄個人決定次數
-                                        dataStore.personalDecisionsMade += 1
-                                        
-                                        // 記錄選擇的食物
-                                        let foodName = recommendedItem.name
-                                        dataStore.foodSelections[foodName, default: 0] += 1
-                                        
-                                        // 保存選擇的食物名稱
-                                        selectedFoodName = foodName
-                                        
-                                        // 重置臨時點擊計數器
-                                        tempPersonalClickCount = 0
-                                        
-                                        // 重置顯示資料
-                                        recommendedItem = ("按下按鈕解決選擇障礙！", 0)
-                                        recommendedItemShopName = ""
-                                    } else {
-                                        // 記錄團體決定次數
-                                        dataStore.groupDecisionsMade += 1
-                                        
-                                        // 記錄選擇的店家
-                                        dataStore.shopSelections[recommendedShop, default: 0] += 1
-                                        
-                                        // 保存選擇的店家名稱
-                                        selectedShopName = recommendedShop
-                                        
-                                        // 重置臨時點擊計數器
-                                        tempGroupClickCount = 0
-                                        
-                                        // 重置顯示資料
-                                        recommendedShop = "按下按鈕決定！"
-                                    }
-                                    
-                                    // 顯示提示框
-                                    showEatingAlert = true
-                                }
-                            } label: {
-                                HStack {
-                                    Image(systemName: "fork.knife")
-                                        .font(.title2)
-                                    Text("吃！")
-                                        .font(.title3)
-                                        .fontWeight(.semibold)
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 60)
-                                .background(
-                                    dataStore.shops.isEmpty 
-                                    ? Color.gray 
-                                    : Color.green
-                                )
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
-                                .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
-                            }
-                            .buttonStyle(PressableButtonStyle()) // 使用自定義按鈕樣式
-                            .padding(.horizontal)
-                            .disabled(
-                                dataStore.shops.isEmpty || 
-                                (selectedMode == 0 && recommendedItem.name == "按下按鈕解決選擇障礙！") ||
-                                (selectedMode == 1 && (recommendedShop == "按下按鈕決定！" || recommendedShop == "尚無店家"))
-                            )
-                        }
-                        
-                        Spacer()
-                    }
-                    .padding(.bottom, 30)
-                }
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        HStack {
-                            Text("Eat Now !")
-                                .font(.headline)
-                                .fontWeight(.bold)
-                            
-                            Spacer()
-                            
-                            Button(action: {
-                                showingHelp = true
-                            }) {
-                                Image(systemName: "questionmark.circle")
-                                    .font(.title3)
-                            }
+                            Text(selectedMode == 0 ? "今天要吃什麼？" : "要去哪裡吃？")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(.primary)
+                                .shadow(color: .gray.opacity(0.3), radius: 2, x: 1, y: 1)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 8)
+                        .padding(.horizontal)
+                        .padding(.top, 30)
+                        .padding(.bottom, 20)
+                        
+                        // 功能區塊 - 畫面中央
+                        VStack(spacing: 30) {
+                            // 切換個人/團體模式
+                            Picker("", selection: $selectedMode) {
+                                Text("食物").tag(0)
+                                Text("店家").tag(1)
+                            }
+                            .pickerStyle(SegmentedPickerStyle())
+                            .padding(.horizontal)
+                            
+                            // 隨機選擇顯示
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(.secondarySystemBackground))
+                                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+                                    .frame(height: 150)
+                                
+                                VStack(spacing: 8) {
+                                    if selectedMode == 0 {
+                                        if dataStore.shops.isEmpty {
+                                            VStack(spacing: 10) {
+                                                Image(systemName: "exclamationmark.triangle")
+                                                    .font(.largeTitle)
+                                                    .foregroundColor(.orange)
+                                                
+                                                Text("目前沒有店家資料")
+                                                    .font(.headline)
+                                                    .multilineTextAlignment(.center)
+                                                
+                                                Text("請先新增店家和菜單")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.secondary)
+                                                    .multilineTextAlignment(.center)
+                                            }
+                                        } else if recommendedItem.name == "按下按鈕解決選擇障礙！" {
+                                            Text(recommendedItem.name)
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+                                                .multilineTextAlignment(.center)
+                                        } else {
+                                            Text(recommendedItemShopName)
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.primary)
+                                                .multilineTextAlignment(.center)
+                                                .padding(.bottom, 4)
+                                            
+                                            Text("\(recommendedItem.name) - \(recommendedItem.price) 元")
+                                                .font(.title3)
+                                                .foregroundColor(.primary)
+                                                .multilineTextAlignment(.center)
+                                        }
+                                    } else {
+                                        if dataStore.shops.isEmpty {
+                                            VStack(spacing: 10) {
+                                                Image(systemName: "exclamationmark.triangle")
+                                                    .font(.largeTitle)
+                                                    .foregroundColor(.orange)
+                                                
+                                                Text("目前沒有店家資料")
+                                                    .font(.headline)
+                                                    .multilineTextAlignment(.center)
+                                                
+                                                Text("請先新增店家")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.secondary)
+                                                    .multilineTextAlignment(.center)
+                                            }
+                                        } else {
+                                            Text(recommendedShop)
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+                                                .multilineTextAlignment(.center)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                            .padding(.horizontal)
+                            
+                            // 按鈕容器 - 確保所有按鈕寬度一致
+                            VStack(spacing: 30) {
+                                // 隨機按鈕 - 使用ButtonStyle實現更自然的按下效果
+                                Button {
+                                    // 觸發震動反饋
+                                    impactFeedbackGenerator.prepare()
+                                    impactFeedbackGenerator.impactOccurred()
+                                    
+                                    // 處理業務邏輯
+                                    if selectedMode == 0 {
+                                        // 從隨機店家取得隨機菜單項目
+                                        let result = dataStore.getRandomMenuItem()
+                                        recommendedItem = (name: result.name, price: result.price)
+                                        recommendedItemShopName = result.shopName
+                                        
+                                        // 記錄點擊個人隨機按鈕次數
+                                        dataStore.personalRandomCount += 1
+                                        tempPersonalClickCount += 1 // 臨時計數器也+1
+                                        
+                                        // 處理特效
+                                        effectsController.handleButtonClick(count: tempPersonalClickCount, mode: selectedMode)
+                                    } else {
+                                        let shopNames = dataStore.shops.map { $0.name }
+                                        recommendedShop = shopNames.isEmpty ? "尚無店家" : (shopNames.randomElement() ?? "尚無店家")
+                                        
+                                        // 記錄點擊團體隨機按鈕次數
+                                        dataStore.groupRandomCount += 1
+                                        tempGroupClickCount += 1 // 臨時計數器也+1
+                                        
+                                        // 處理特效
+                                        effectsController.handleButtonClick(count: tempGroupClickCount, mode: selectedMode)
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: selectedMode == 0 ? "dot.circle.and.hand.point.up.left.fill" : "dot.circle.and.hand.point.up.left.fill")
+                                            .font(.title2)
+                                        Text(selectedMode == 0 ? "戳下去 推薦食物給你！" : "戳下去！")
+                                            .font(.title)
+                                            .fontWeight(.semibold)
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 150)
+                                    .background(
+                                        dataStore.shops.isEmpty 
+                                        ? Color.gray 
+                                        : effectsController.getButtonColor(count: selectedMode == 0 ? tempPersonalClickCount : tempGroupClickCount)
+                                    )
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                                    .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
+                                }
+                                .buttonStyle(PressableButtonStyle()) // 使用自定義按鈕樣式
+                                .disabled(dataStore.shops.isEmpty)
+                                .padding(.horizontal)
+                                .overlay(
+                                    Group {
+                                        if dataStore.shops.isEmpty {
+                                            NavigationLink(destination: ShopListView().environmentObject(dataStore)) {
+                                                Text("請新增資料")
+                                                    .font(.caption)
+                                                    .padding(6)
+                                                    .background(Color.white)
+                                                    .foregroundColor(.orange)
+                                                    .cornerRadius(4)
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 4)
+                                                            .stroke(Color.orange, lineWidth: 1)
+                                                    )
+                                            }
+                                            .offset(y: -35)
+                                        }
+                                    }
+                                )
+                                
+                                // 吃！按鈕
+                                Button {
+                                    // 觸發震動反饋 - 使用不同的震動模式
+                                    let successFeedbackGenerator = UINotificationFeedbackGenerator()
+                                    successFeedbackGenerator.prepare()
+                                    successFeedbackGenerator.notificationOccurred(.success)
+                                    
+                                    // 先判斷是否有已推薦的項目
+                                    if (selectedMode == 0 && recommendedItem.name != "按下按鈕解決選擇障礙！") ||
+                                       (selectedMode == 1 && recommendedShop != "別再問要吃什麼了 戳下去吧！" && recommendedShop != "尚無店家") {
+                                        
+                                        // 保存當前點擊次數用於顯示
+                                        currentClickCount = selectedMode == 0 ? tempPersonalClickCount : tempGroupClickCount
+                                        
+                                        // 記錄解決選擇障礙次數
+                                        dataStore.totalDecisionsMade += 1
+                                        
+                                        if selectedMode == 0 {
+                                            // 記錄個人決定次數
+                                            dataStore.personalDecisionsMade += 1
+                                            
+                                            // 記錄選擇的食物
+                                            let foodName = recommendedItem.name
+                                            dataStore.foodSelections[foodName, default: 0] += 1
+                                            
+                                            // 保存選擇的食物名稱
+                                            selectedFoodName = foodName
+                                            
+                                            // 重置臨時點擊計數器
+                                            tempPersonalClickCount = 0
+                                            effectsController.resetEffects()
+                                            
+                                            // 重置顯示資料
+                                            recommendedItem = ("按下按鈕解決選擇障礙！", 0)
+                                            recommendedItemShopName = ""
+                                        } else {
+                                            // 記錄團體決定次數
+                                            dataStore.groupDecisionsMade += 1
+                                            
+                                            // 記錄選擇的店家
+                                            dataStore.shopSelections[recommendedShop, default: 0] += 1
+                                            
+                                            // 保存選擇的店家名稱
+                                            selectedShopName = recommendedShop
+                                            
+                                            // 重置臨時點擊計數器
+                                            tempGroupClickCount = 0
+                                            effectsController.resetEffects()
+                                            
+                                            // 重置顯示資料
+                                            recommendedShop = "按下按鈕決定！"
+                                        }
+                                        
+                                        // 顯示提示框
+                                        showEatingAlert = true
+                                        
+                                        // 觸發煙花特效
+                                        effectsController.triggerFireworks()
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "fork.knife")
+                                            .font(.title2)
+                                        Text("吃！")
+                                            .font(.title3)
+                                            .fontWeight(.semibold)
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 60)
+                                    .background(
+                                        dataStore.shops.isEmpty 
+                                        ? Color.gray 
+                                        : Color.green
+                                    )
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                                    .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
+                                }
+                                .buttonStyle(PressableButtonStyle()) // 使用自定義按鈕樣式
+                                .padding(.horizontal)
+                                .disabled(
+                                    dataStore.shops.isEmpty || 
+                                    (selectedMode == 0 && recommendedItem.name == "按下按鈕解決選擇障礙！") ||
+                                    (selectedMode == 1 && (recommendedShop == "別再問要吃什麼了 戳下去吧！" || recommendedShop == "尚無店家"))
+                                )
+                            }
+                            
+                            Spacer()
+                        }
+                        .padding(.bottom, 30)
+                    }
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            HStack {
+                                Text("Eat Now !")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    showingHelp = true
+                                }) {
+                                    Image(systemName: "questionmark.circle")
+                                        .font(.title3)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 8)
+                        }
                     }
                 }
+                .alert(isPresented: $showEatingAlert) {
+                    Alert(
+                        title: Text(selectedMode == 0 ? "去吃\(selectedFoodName)吧！" : "和大家去\(selectedShopName)吧！"),
+                        message: Text("你戳了\(currentClickCount)次按鈕，\(selectedMode == 0 ? "解決了選擇障礙！" : "幫大家決定吃什麼！")"),
+                        dismissButton: .default(Text("好欸！"))
+                    )
+                }
+                .sheet(isPresented: $showingHelp) {
+                    HelpView()
+                }
+                .onAppear {
+                    // 預熱震動生成器以減少延遲
+                    impactFeedbackGenerator.prepare()
+                }
             }
-            .alert(isPresented: $showEatingAlert) {
-                Alert(
-                    title: Text(selectedMode == 0 ? "去吃\(selectedFoodName)吧！" : "和大家去\(selectedShopName)吧！"),
-                    message: Text("你戳了\(currentClickCount)次按鈕，\(selectedMode == 0 ? "解決了選擇障礙！" : "幫大家決定吃什麼！")"),
-                    dismissButton: .default(Text("好欸！"))
-                )
-            }
-            .sheet(isPresented: $showingHelp) {
-                HelpView()
-            }
-            .onAppear {
-                // 預熱震動生成器以減少延遲
-                impactFeedbackGenerator.prepare()
+            
+            // 特效疊加層 - 保持在最上層
+            if effectsController.showWarningMessage || effectsController.showFireworks || effectsController.showExplosion {
+                // 特效背景
+                ZStack {
+                    // 警告消息視圖
+                    if effectsController.showWarningMessage {
+                        WarningMessageView(message: effectsController.warningMessage)
+                            .position(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height / 2)
+                    }
+                    
+                    // 煙花特效
+                    if effectsController.showFireworks {
+                        FireworksView()
+                    }
+                    
+                    // 爆炸特效
+                    if effectsController.showExplosion {
+                        ExplosionView()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .edgesIgnoringSafeArea(.all)
+                .allowsHitTesting(false) // 允許透過特效層點擊下面的元素
             }
         }
     }

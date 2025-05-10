@@ -357,32 +357,24 @@ class DataStore: ObservableObject {
         }
     }
 
-    // 清除所有資料
-    func clearAllData() {
-        shops = []
-        customFoods = []
-        statsHistory = []
-        commonNames = []
-        userName = ""
-        userAvatarName = ""
+    // 只清除店家資料的方法
+    func clearShopsData() {
+        shops = [] // 清空店家陣列
         
-        // 重置統計數據
-        resetStats()
-        
-        // 刪除所有本地保存的檔案
+        // 刪除本地保存的店家檔案
         let fileManager = FileManager.default
         let documentDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let files = try? fileManager.contentsOfDirectory(at: documentDirectory, includingPropertiesForKeys: nil)
-        files?.forEach { file in
-            if file.lastPathComponent.contains(saveKey) ||
-               file.lastPathComponent.contains(customFoodsSaveKey) ||
-               file.lastPathComponent.contains(statsHistorySaveKey) ||
-               file.lastPathComponent.contains(commonNamesSaveKey) ||
-               file.lastPathComponent.contains(userProfileSaveKey) ||
-               file.lastPathComponent.contains(statsDataSaveKey) {
-                try? fileManager.removeItem(at: file)
-            }
+        let shopFile = documentDirectory.appendingPathComponent("\(saveKey).json")
+        
+        if fileManager.fileExists(atPath: shopFile.path) {
+            try? fileManager.removeItem(at: shopFile)
         }
+        
+        // 重新初始化預設資料
+        initializeDefaultData()
+        
+        // 通知用戶界面更新
+        objectWillChange.send()
     }
     
     // 從隨機店家獲取隨機菜單項目

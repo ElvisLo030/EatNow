@@ -1,10 +1,12 @@
 import SwiftUI
+import Foundation
 
 // MARK: - 設定頁面
 struct SettingsView: View {
     @EnvironmentObject var dataStore: DataStore
     @State private var showCSVExport = false
     @State private var showDeleteConfirmation = false
+    @State private var showResetStatsConfirmation = false
 
     var body: some View {
         NavigationView {
@@ -15,39 +17,54 @@ struct SettingsView: View {
                         TextField("使用者名稱", text: $dataStore.userName)
                     }
 
+                    Section(header: Text("顯示設定")) {
+                        Toggle("啟用視覺特效", isOn: $dataStore.effectsEnabled)
+                            .toggleStyle(SwitchToggleStyle(tint: .blue))
+                            .disabled(!isEffectsUnlocked())
+                        
+                        if !isEffectsUnlocked() {
+                            HStack {
+                                Image(systemName: "lock.fill")
+                                    .foregroundColor(.orange)
+                                Text("達成至少3個成就以解鎖視覺特效")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+
                     Section(header: Text("資料管理")) {
                         Button("匯出店家資料") {
                             showCSVExport = true
                         }
                         .foregroundColor(.blue)
 
-                        Button(role: .destructive) {
-                            showDeleteConfirmation = true
-                        } label: {
-                            Text("清除所有資料")
-                        }
-                        .alert("確認刪除", isPresented: $showDeleteConfirmation) {
-                            Button("取消", role: .cancel) { }
-                            Button("確認刪除", role: .destructive) {
-                                dataStore.clearAllData()
-                            }
-                        } message: {
-                            Text("此操作將刪除所有資料，且無法恢復。確定要繼續嗎？")
-                        }
-                    }
-
-                    Section(header: Text("統計資訊")) {
                         Button("重置統計資料") {
-                            showDeleteConfirmation = true
+                            showResetStatsConfirmation = true
                         }
                         .foregroundColor(.orange)
-                        .alert("確認重置", isPresented: $showDeleteConfirmation) {
+                        .alert("確認重置", isPresented: $showResetStatsConfirmation) {
                             Button("取消", role: .cancel) { }
                             Button("確認重置", role: .destructive) {
                                 dataStore.resetStats()
                             }
                         } message: {
-                            Text("此操作將重置所有統計資料，且無法恢復。確定要繼續嗎？")
+                            Text("此操作將重置所有統計資料，且無法恢復。確定要繼續嗎？\n\n重置統計資料不會重置成就。")
+                        }
+
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            Text("清除所有店家資料")
+                        }
+                        .alert("確認刪除", isPresented: $showDeleteConfirmation) {
+                            Button("取消", role: .cancel) { }
+                            Button("確認刪除", role: .destructive) {
+                                dataStore.clearShopsData()
+                            }
+                        } message: {
+                            Text("此操作將刪除所有店家和菜單資料，但會保留您的統計數據和個人設定。確定要繼續嗎？")
                         }
                     }
 
@@ -55,10 +72,10 @@ struct SettingsView: View {
 
                         HStack {
                             Image(systemName: "envelope")
-                            Text("elvislo.work@gmail.com")
+                            Text("help@elvislo.tw")
                                 .foregroundColor(.blue)
                                 .onTapGesture {
-                                    if let url = URL(string: "mailto:elvislo.work@gmail.com") {
+                                    if let url = URL(string: "mailto:help@elvislo.tw") {
                                         UIApplication.shared.open(url)
                                     }
                                 }
@@ -77,10 +94,45 @@ struct SettingsView: View {
                         }
                         HStack {
                             Image(systemName: "info.circle")
-                            NavigationLink("版本 1.1.1") {
+                            NavigationLink("版本 1.1.2") {
                                 UpdateHistoryView()
                             }
                         }
+                    }
+                    
+                    // 添加 Buy Me A Coffee 按鈕區塊
+                    Section {
+                        Link(destination: URL(string: "https://www.buymeacoffee.com/elvislo030")!) {
+                            HStack {
+                                Spacer()
+                                VStack(spacing: 8) {
+                                    Image(systemName: "cup.and.saucer.fill")
+                                        .font(.title)
+                                        .foregroundColor(.yellow)
+                                    
+                                    Text("Buy Me A Coffee")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                    
+                                    Text("支持開發者持續改進 EatNow")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                }
+                                Spacer()
+                            }
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.yellow.opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.yellow, lineWidth: 2)
+                                    )
+                            )
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
                 .navigationTitle("設定")
@@ -91,95 +143,162 @@ struct SettingsView: View {
             }
         }
     }
+    
+    // 檢查是否解鎖視覺特效
+    private func isEffectsUnlocked() -> Bool {
+        return dataStore.shouldUnlockEffects()
+    }
+}
+
+// 為Settings模塊創建一個獨立的Achievement結構體，以避免命名衝突
+struct StatsAchievement: Identifiable {
+    let id: String
+    let title: String
+    let description: String
+    let icon: String
+    let progress: Double
+    let unlocked: Bool
+    let reward: String
 }
 
 // MARK: - 更新歷史頁面
 struct UpdateHistoryView: View {
+    @State private var versionReleases: [VersionRelease] = []
+    @State private var isLoading = true
+    @State private var error: Error?
+    
     var body: some View {
-        List {
-            Section(header: Text("版本 1.1.1").font(.headline)) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("2025年5月8日發布")
-                        .font(.subheadline)
+        Group {
+            if isLoading {
+                ProgressView("正在從 GitHub 獲取更新資訊...")
+                    .padding()
+            } else if let error = error {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundColor(.orange)
+                    
+                    Text("無法連接到 GitHub")
+                        .font(.headline)
+                    
+                    Text(error.localizedDescription)
+                        .font(.caption)
                         .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                     
-                    Divider()
-                Text("新增功能：")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                
-                Group {
-                        BulletPoint(text: "新增成就系統")
+                    Button("重試") {
+                        loadCommits()
                     }
-
-                    Text("修改和優化：")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .padding(.top, 8)
-                    
-                    Group {
-                        BulletPoint(text: "修改License讀取方式")
-                        BulletPoint(text: "優化統計頁面")
+                    .padding()
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+            } else {
+                List {
+                    ForEach(versionReleases) { release in
+                        Section(header: Text("Commit \(release.commitHash)")
+                                 .font(.headline)
+                                 .foregroundColor(.primary)) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("\(release.formattedDate)發布")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Spacer()
+                                    
+                                    if !release.version.isEmpty {
+                                        Text("版本: \(release.version)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Link(destination: URL(string: release.commitUrl)!) {
+                                        HStack(spacing: 2) {
+                                            Text("前往GitHub")
+                                            Image(systemName: "arrow.up.right.square")
+                                        }
+                                        .font(.caption)
+                                    }
+                                    .buttonStyle(BorderlessButtonStyle()) // 確保按鈕不影響其他按鈕的觸發
+                                }
+                                
+                                // 使用可展開的 commit 訊息
+                                ExpandableCommitMessage(message: release.fullMessage)
+                                    
+                                Divider()
+                                
+                            }
+                        }
                     }
                 }
-                .padding(.vertical, 6)  
-            }
-
-            Section(header: Text("版本 1.1 2fbbf8a").font(.headline)) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("2025年5月7日發布")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Divider()
-
-                    Text("新增功能：")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    
-                    Group {
-                        BulletPoint(text: "新增版本說明、License")
-                    }
-                    
-                    Text("修改和優化：")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .padding(.top, 8)
-                    
-                    Group {
-                        BulletPoint(text: "修改部分文本")
-                        BulletPoint(text: "優化資料匯入和匯出功能")
-                        BulletPoint(text: "優化使用者介面，提升操作流暢度")
-                        BulletPoint(text: "優化CSV範本")
-                    }
-                }
-                .padding(.vertical, 6)
-            }
-            
-            Section(header: Text("版本 1.0 ab883ff").font(.headline)) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("2025年5月6日發布")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Divider()
-                    
-                    Text("首次發布：")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    
-                    Group {
-                        BulletPoint(text: "食物和店家隨機推薦功能")
-                        BulletPoint(text: "CSV 資料匯入匯出")
-                        BulletPoint(text: "基本使用統計")
-                        BulletPoint(text: "使用者檔案設定")
-                    }
-                }
-                .padding(.vertical, 6)
             }
         }
         .navigationTitle("更新歷史")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if versionReleases.isEmpty {
+                loadCommits()
+            }
+        }
+    }
+    
+    private func loadCommits() {
+        isLoading = true
+        GitHubService.shared.fetchCommits { commits, error in
+            DispatchQueue.main.async {
+                self.isLoading = false
+                
+                if let error = error {
+                    self.error = error
+                    // 加載失敗時使用默認資料（好像怪怪的，就不顯示了）
+                    //self.versionReleases = GitHubService.shared.defaultVersionReleases()
+                    return
+                }
+                
+                if let commits = commits {
+                    self.versionReleases = GitHubService.shared.getVersionReleases(from: commits)
+                }
+            }
+        }
+    }
+}
+
+// 新增一個可展開的 commit 訊息組件
+struct ExpandableCommitMessage: View {
+    let message: String
+    @State private var isExpanded = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(message)
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .padding(.vertical, 8)
+                .lineLimit(isExpanded ? nil : 3)
+                .animation(.spring(), value: isExpanded)
+            
+            if message.count > 150 { // 只有當文字較長時才顯示按鈕
+                Button(action: {
+                    isExpanded.toggle()
+                }) {
+                    HStack {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10))
+                        Text(isExpanded ? "收起內容" : "展開完整內容")
+                            .font(.caption)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(4)
+                    .foregroundColor(.primary)
+                }
+                .buttonStyle(BorderlessButtonStyle()) // 防止按鈕事件傳播
+                .padding(.bottom, 4)
+            }
+        }
     }
 }
 

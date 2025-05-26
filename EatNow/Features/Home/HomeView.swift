@@ -3,25 +3,19 @@ import UIKit
 
 // MARK: - 主頁視圖
 struct HomeView: View {
-    // MARK: - 狀態屬性
-    @State private var recommendedItem: (name: String, price: Int) = ("按下按鈕解決選擇障礙！", 0) // 推薦食物項目
-    @State private var recommendedShop: String = "別再問要吃什麼了 戳下去吧！" // 推薦店家名稱
-    @State private var recommendedItemShopName: String = "" // 推薦食物所屬店家名稱
-    @State private var selectedMode: Int = 0 // 選擇模式：0: 食物, 1: 店家
-    @State private var showEatingAlert = false // 顯示吃的提示框
-    @State private var tempPersonalClickCount: Int = 0 // 臨時記錄個人模式點擊次數
-    @State private var tempGroupClickCount: Int = 0 // 臨時記錄團體模式點擊次數
-    @State private var currentClickCount: Int = 0 // 用於顯示在警告中的點擊次數
-    @State private var selectedFoodName: String = "" // 用戶選擇的食物名稱
-    @State private var selectedShopName: String = "" // 用戶選擇的店家名稱
-    @State private var showingHelp = false // 控制是否顯示使用說明
-    
-    // 震動回饋生成器 - 增強使用者體驗
-    let impactFeedbackGenerator = UIImpactFeedbackGenerator(style: .medium)
-    
     // MARK: - 環境與狀態對象
     @EnvironmentObject private var dataStore: DataStore // 資料存儲對象
     @StateObject private var effectsController = EffectsController() // 特效控制器
+    @StateObject private var viewModel: HomeViewModel
+    
+    // 初始化 ViewModel
+    init() {
+        // 注意：這裡使用臨時值初始化，真正的依賴注入會在 onAppear 中處理
+        _viewModel = StateObject(wrappedValue: HomeViewModel(
+            dataStore: DataStore.shared,
+            effectsController: EffectsController()
+        ))
+    }
 
     // MARK: - 視圖主體
     var body: some View {
@@ -43,7 +37,7 @@ struct HomeView: View {
                                 .fontWeight(.medium)
                             
                             // 根據當前模式顯示不同標題
-                            Text(selectedMode == 0 ? "今天要吃什麼？" : "要去哪裡吃？")
+                            Text(viewModel.getTitleText())
                                 .font(.system(size: 32, weight: .bold))
                                 .foregroundColor(.primary)
                                 .shadow(color: .gray.opacity(0.3), radius: 2, x: 1, y: 1)
@@ -56,7 +50,7 @@ struct HomeView: View {
                         // MARK: - 功能區塊
                         VStack(spacing: 30) {
                             // 模式切換選擇器
-                            Picker("", selection: $selectedMode) {
+                            Picker("", selection: $viewModel.uiState.selectedMode) {
                                 Text("食物").tag(0) // 食物模式
                                 Text("店家").tag(1) // 店家模式
                             }
@@ -73,7 +67,7 @@ struct HomeView: View {
                                 
                                 // 推薦內容顯示
                                 VStack(spacing: 8) {
-                                    if selectedMode == 0 { // 食物模式
+                                    if viewModel.uiState.selectedMode == 0 { // 食物模式
                                         if dataStore.shops.isEmpty { // 無資料情況
                                             VStack(spacing: 10) {
                                                 Image(systemName: "exclamationmark.triangle")
@@ -89,14 +83,14 @@ struct HomeView: View {
                                                     .foregroundColor(.secondary)
                                                     .multilineTextAlignment(.center)
                                             }
-                                        } else if recommendedItem.name == "按下按鈕解決選擇障礙！" { // 初始狀態
-                                            Text(recommendedItem.name)
+                                        } else if viewModel.recommendationState.foodItem.name == RecommendationState.InitialMessages.food { // 初始狀態
+                                            Text(viewModel.recommendationState.foodItem.name)
                                                 .font(.title2)
                                                 .fontWeight(.bold)
                                                 .multilineTextAlignment(.center)
                                         } else { // 已推薦食物
                                             // 顯示店家名稱
-                                            Text(recommendedItemShopName)
+                                            Text(viewModel.recommendationState.foodShopName)
                                                 .font(.title2)
                                                 .fontWeight(.bold)
                                                 .foregroundColor(.primary)
@@ -104,7 +98,7 @@ struct HomeView: View {
                                                 .padding(.bottom, 4)
                                             
                                             // 顯示食物名稱與價格
-                                            Text("\(recommendedItem.name) - \(recommendedItem.price) 元")
+                                            Text("\(viewModel.recommendationState.foodItem.name) - \(viewModel.recommendationState.foodItem.price) 元")
                                                 .font(.title3)
                                                 .foregroundColor(.primary)
                                                 .multilineTextAlignment(.center)
@@ -126,7 +120,7 @@ struct HomeView: View {
                                                     .multilineTextAlignment(.center)
                                             }
                                         } else { // 顯示推薦店家
-                                            Text(recommendedShop)
+                                            Text(viewModel.recommendationState.shopName)
                                                 .font(.title2)
                                                 .fontWeight(.bold)
                                                 .multilineTextAlignment(.center)
@@ -137,58 +131,22 @@ struct HomeView: View {
                             }
                             .padding(.horizontal)
                             
-                            // MARK: - 操作按鈕區域
+                            // 操作按鈕區域
                             VStack(spacing: 30) {
                                 // MARK: - 隨機推薦按鈕
                                 Button {
-                                    // 觸發震動反饋 - 增強用戶體驗
-                                    impactFeedbackGenerator.prepare()
-                                    impactFeedbackGenerator.impactOccurred()
-                                    
-                                    // 根據當前模式處理隨機推薦邏輯
-                                    if selectedMode == 0 { // 食物模式
-                                        // 從資料庫獲取隨機菜單項目
-                                        let result = dataStore.getRandomMenuItem()
-                                        recommendedItem = (name: result.name, price: result.price)
-                                        recommendedItemShopName = result.shopName
-                                        
-                                        // 更新統計數據
-                                        dataStore.personalRandomCount += 1 // 累計總點擊次數
-                                        tempPersonalClickCount += 1 // 當前會話點擊次數
-                                        
-                                        // 根據設定啟用特效
-                                        if dataStore.effectsEnabled {
-                                            effectsController.handleButtonClick(count: tempPersonalClickCount, mode: selectedMode)
-                                        }
-                                    } else { // 店家模式
-                                        // 獲取所有店家並隨機選擇一家
-                                        let shopNames = dataStore.shops.map { $0.name }
-                                        recommendedShop = shopNames.isEmpty ? "尚無店家" : (shopNames.randomElement() ?? "尚無店家")
-                                        
-                                        // 更新統計數據
-                                        dataStore.groupRandomCount += 1 // 累計總點擊次數
-                                        tempGroupClickCount += 1 // 當前會話點擊次數
-                                        
-                                        // 根據設定啟用特效
-                                        if dataStore.effectsEnabled {
-                                            effectsController.handleButtonClick(count: tempGroupClickCount, mode: selectedMode)
-                                        }
-                                    }
+                                    viewModel.handleRandomRecommendation()
                                 } label: {
                                     // 按鈕外觀設計
                                     HStack {
-                                        Image(systemName: selectedMode == 0 ? "dot.circle.and.hand.point.up.left.fill" : "dot.circle.and.hand.point.up.left.fill")
+                                        Image(systemName: "dot.circle.and.hand.point.up.left.fill")
                                             .font(.title2)
-                                        Text(selectedMode == 0 ? "戳下去 推薦食物給你！" : "戳下去！")
+                                        Text(viewModel.getRecommendationButtonText())
                                             .font(.title)
                                             .fontWeight(.semibold)
                                     }
                                     .frame(maxWidth: .infinity, minHeight: 150)
-                                    .background(
-                                        dataStore.shops.isEmpty 
-                                        ? Color.gray // 無資料時灰色
-                                        : effectsController.getButtonColor(count: selectedMode == 0 ? tempPersonalClickCount : tempGroupClickCount) // 根據點擊次數變色
-                                    )
+                                    .background(viewModel.getButtonColor())
                                     .foregroundColor(.white)
                                     .cornerRadius(12)
                                     .shadow(color: Color.black.opacity(0.2), radius: 5, x: 0, y: 3)
@@ -218,68 +176,7 @@ struct HomeView: View {
                                 
                                 // MARK: - 確認選擇按鈕
                                 Button {
-                                    // 確認選擇時的震動反饋 - 使用成功提示震動
-                                    let successFeedbackGenerator = UINotificationFeedbackGenerator()
-                                    successFeedbackGenerator.prepare()
-                                    successFeedbackGenerator.notificationOccurred(.success)
-                                    
-                                    // 確認當前是否有有效推薦結果
-                                    if (selectedMode == 0 && recommendedItem.name != "按下按鈕解決選擇障礙！") ||
-                                       (selectedMode == 1 && recommendedShop != "別再問要吃什麼了 戳下去吧！" && recommendedShop != "尚無店家") {
-                                        
-                                        // 記錄當前點擊次數用於顯示
-                                        currentClickCount = selectedMode == 0 ? tempPersonalClickCount : tempGroupClickCount
-                                        
-                                        // 更新全域統計數據
-                                        dataStore.totalDecisionsMade += 1 // 總決策次數
-                                        
-                                        if selectedMode == 0 { // 食物模式的確認處理
-                                            // 更新個人決策統計
-                                            dataStore.personalDecisionsMade += 1
-                                            
-                                            // 更新食物選擇頻率統計
-                                            let foodName = recommendedItem.name
-                                            dataStore.foodSelections[foodName, default: 0] += 1
-                                            
-                                            // 儲存當前選擇的食物名稱
-                                            selectedFoodName = foodName
-                                            
-                                            // 重置狀態與特效
-                                            tempPersonalClickCount = 0
-                                            effectsController.resetEffects()
-                                            
-                                            // 重置顯示內容回初始狀態
-                                            recommendedItem = ("按下按鈕解決選擇障礙！", 0)
-                                            recommendedItemShopName = ""
-                                        } else { // 店家模式的確認處理
-                                            // 更新團體決策統計
-                                            dataStore.groupDecisionsMade += 1
-                                            
-                                            // 更新店家選擇頻率統計
-                                            dataStore.shopSelections[recommendedShop, default: 0] += 1
-                                            
-                                            // 儲存當前選擇的店家名稱
-                                            selectedShopName = recommendedShop
-                                            
-                                            // 重置狀態與特效
-                                            tempGroupClickCount = 0
-                                            effectsController.resetEffects()
-                                            
-                                            // 重置顯示內容回初始狀態
-                                            recommendedShop = "按下按鈕決定！"
-                                        }
-                                        
-                                        // 立即觸發特效，避免顯示Alert前延遲
-                                        if dataStore.effectsEnabled {
-                                            effectsController.triggerFireworks()
-                                        }
-                                        
-                                        // 稍後顯示確認選擇的提示框，給特效時間先顯示
-                                        Task { @MainActor in
-                                            try? await Task.sleep(for: .seconds(0.1))
-                                            showEatingAlert = true
-                                        }
-                                    }
+                                    viewModel.handleConfirmSelection()
                                 } label: {
                                     // 吃按鈕外觀設計
                                     HStack {
@@ -301,11 +198,7 @@ struct HomeView: View {
                                 }
                                 .buttonStyle(PressableButtonStyle()) // 自定義按壓效果
                                 .padding(.horizontal)
-                                .disabled( // 禁用條件：無資料或無有效推薦
-                                    dataStore.shops.isEmpty || 
-                                    (selectedMode == 0 && recommendedItem.name == "按下按鈕解決選擇障礙！") ||
-                                    (selectedMode == 1 && (recommendedShop == "別再問要吃什麼了 戳下去吧！" || recommendedShop == "尚無店家"))
-                                )
+                                .disabled(!viewModel.canConfirmSelection())
                             }
                             
                             Spacer() // 佔用剩餘空間
@@ -326,7 +219,7 @@ struct HomeView: View {
                                 
                                 // 幫助按鈕
                                 Button(action: {
-                                    showingHelp = true // 顯示說明頁面
+                                    viewModel.uiState.showingHelp = true // 顯示說明頁面
                                 }) {
                                     Image(systemName: "questionmark.circle")
                                         .font(.title3)
@@ -338,19 +231,19 @@ struct HomeView: View {
                     }
                 }
                 // MARK: - 彈出提示與頁面
-                .alert(isPresented: $showEatingAlert) { // 確認選擇的提示框
+                .alert(isPresented: $viewModel.uiState.showEatingAlert) { // 確認選擇的提示框
                     Alert(
-                        title: Text(selectedMode == 0 ? "去吃\(selectedFoodName)吧！" : "和大家去\(selectedShopName)吧！"),
-                        message: Text("你戳了\(currentClickCount)次按鈕，\(selectedMode == 0 ? "解決了選擇障礙！" : "幫大家決定吃什麼！")"),
+                        title: Text(viewModel.getAlertTitle()),
+                        message: Text(viewModel.getAlertMessage()),
                         dismissButton: .default(Text("好欸！"))
                     )
                 }
-                .sheet(isPresented: $showingHelp) { // 說明頁面
+                .sheet(isPresented: $viewModel.uiState.showingHelp) { // 說明頁面
                     HelpView()
                 }
                 .onAppear {
-                    // 視圖出現時預熱震動生成器以減少延遲
-                    impactFeedbackGenerator.prepare()
+                    // 視圖出現時同步 effectsController 的引用
+                    viewModel.syncEffectsController(effectsController)
                 }
             }
             
@@ -560,14 +453,6 @@ struct HelpView: View {
                         ]
                     )
                     
-                    // 小技巧提示
-                    HStack {
-                        Image(systemName: "lightbulb.fill")
-                            .foregroundColor(.yellow)
-                        Text("小技巧：首次使用時，建議從設定頁匯入範例資料，快速體驗所有功能！")
-                            .font(.footnote)
-                            .italic()
-                    }
                     .padding()
                     .background(Color(.systemGray6))
                     .cornerRadius(8)

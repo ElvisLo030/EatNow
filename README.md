@@ -17,26 +17,33 @@ EatNow/
 │   ├── Models/ - 數據模型定義
 │   │   └── Models.swift - 包含所有應用程式使用的數據模型
 │   └── Utilities/ - 工具類和擴展
-│       ├── DataStore.swift - 資料儲存和管理
+│       ├── DataStore.swift - 資料儲存和管理 (Model層)
 │       ├── Extensions.swift - Swift 擴展
 │       └── CSVHandler.swift - CSV 檔案處理
 │
-├── Features/ - 功能模組
+├── Features/ - 功能模組 (採用MVVM架構)
 │   ├── Home/ - 主畫面和隨機推薦
-│   │   └── HomeView.swift - 主頁面和隨機食物推薦
+│   │   ├── HomeView.swift - 主頁面UI (View層)
+│   │   ├── HomeViewModel.swift - 業務邏輯和狀態管理 (ViewModel層)
+│   │   └── HomeEffects.swift - 視覺特效控制器
 │   ├── Shop/ - 店家管理
-│   │   ├── ShopViews.swift - 店家列表和菜單管理
+│   │   ├── ShopViews.swift - 店家列表和菜單管理UI
 │   │   └── CSVImportView.swift - CSV 匯入功能
-│   ├── Stats/ - 數據統計
-│   │   └── StatsView.swift - 使用統計分析
+│   ├── Stats/ - 數據統計和成就系統
+│   │   ├── StatsView.swift - 使用統計分析UI
+│   │   └── AchievementView.swift - 成就系統UI
 │   └── Settings/ - 設定和資料管理
 │       ├── SettingsView.swift - 使用者設定頁面
 │       ├── LicenseView.swift - License查看介面
-│       └── CSVExportView.swift - CSV 匯出功能
+│       ├── CSVExportView.swift - CSV 匯出功能
+│       └── GitHubService.swift - GitHub API 服務
 │
 ├── Resources/ - 資源文件
-│   └── ExampleCSV.txt - CSV 範例檔案
+│   ├── ExampleCSV.txt - CSV 範例檔案
+│   └── DataStructureAnalysis.md - 資料結構分析文件
 │
+├── ContentView.swift - 主要內容視圖
+├── Item.swift - 項目模型
 └── EatNowApp.swift - 應用程式入口點
 ```
 
@@ -116,8 +123,6 @@ EatNow/
 - 支援CSV格式匯入/匯出店家與菜單
 - 使用「重設資料」可清除現有資料並重新開始
 
-> **小技巧**：首次使用時，可從設定頁匯入範例資料，快速體驗所有功能！
-
 ## 未來功能規劃
 
 - 添加位置標記，記錄店家位置
@@ -128,5 +133,5 @@ EatNow/
 ## 開發者資訊
 
 - 開發者：Elvis Lo
-- 聯絡郵箱：elvislo.work@gmail.com
+- 聯絡郵箱：help@elvislo.tw
 - 版本：1.1.2

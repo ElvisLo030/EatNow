@@ -40,6 +40,19 @@ struct SettingsView: View {
                         }
                         .foregroundColor(.blue)
 
+                        Button("重置統計資料") {
+                            showResetStatsConfirmation = true
+                        }
+                        .foregroundColor(.orange)
+                        .alert("確認重置", isPresented: $showResetStatsConfirmation) {
+                            Button("取消", role: .cancel) { }
+                            Button("確認重置", role: .destructive) {
+                                dataStore.resetStats()
+                            }
+                        } message: {
+                            Text("此操作將重置所有統計資料，且無法恢復。確定要繼續嗎？\n\n重置統計資料不會重置成就。")
+                        }
+
                         Button(role: .destructive) {
                             showDeleteConfirmation = true
                         } label: {
@@ -55,29 +68,14 @@ struct SettingsView: View {
                         }
                     }
 
-                    Section(header: Text("統計資訊")) {
-                        Button("重置統計資料") {
-                            showResetStatsConfirmation = true
-                        }
-                        .foregroundColor(.orange)
-                        .alert("確認重置", isPresented: $showResetStatsConfirmation) {
-                            Button("取消", role: .cancel) { }
-                            Button("確認重置", role: .destructive) {
-                                dataStore.resetStats()
-                            }
-                        } message: {
-                            Text("此操作將重置所有統計資料，且無法恢復。確定要繼續嗎？")
-                        }
-                    }
-
                     Section(header: Text("關於")) {
 
                         HStack {
                             Image(systemName: "envelope")
-                            Text("elvislo.work@gmail.com")
+                            Text("help@elvislo.tw")
                                 .foregroundColor(.blue)
                                 .onTapGesture {
-                                    if let url = URL(string: "mailto:elvislo.work@gmail.com") {
+                                    if let url = URL(string: "mailto:help@elvislo.tw") {
                                         UIApplication.shared.open(url)
                                     }
                                 }
@@ -96,10 +94,45 @@ struct SettingsView: View {
                         }
                         HStack {
                             Image(systemName: "info.circle")
-                            NavigationLink("版本 1.1.1") {
+                            NavigationLink("版本 1.1.2") {
                                 UpdateHistoryView()
                             }
                         }
+                    }
+                    
+                    // 添加 Buy Me A Coffee 按鈕區塊
+                    Section {
+                        Link(destination: URL(string: "https://www.buymeacoffee.com/elvislo030")!) {
+                            HStack {
+                                Spacer()
+                                VStack(spacing: 8) {
+                                    Image(systemName: "cup.and.saucer.fill")
+                                        .font(.title)
+                                        .foregroundColor(.yellow)
+                                    
+                                    Text("Buy Me A Coffee")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                    
+                                    Text("支持開發者持續改進 EatNow")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                }
+                                Spacer()
+                            }
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.yellow.opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.yellow, lineWidth: 2)
+                                    )
+                            )
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
                 .navigationTitle("設定")

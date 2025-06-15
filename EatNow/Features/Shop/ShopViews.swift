@@ -480,7 +480,7 @@ struct ShopDetailView: View {
         isUploading = true
         
         Task { @MainActor in
-            let success = await dataStore.uploadMenuToCloud(shopIndex: shopIndex)
+            _ = await dataStore.uploadMenuToCloud(shopIndex: shopIndex)
             self.isUploading = false
             // 可以在這裡顯示上傳結果通知
         }
@@ -493,7 +493,7 @@ struct ShopDetailView: View {
         isUploading = true
         
         Task { @MainActor in
-            let success = await dataStore.reuploadModifiedMenu(shopIndex: shopIndex)
+            _ = await dataStore.reuploadModifiedMenu(shopIndex: shopIndex)
             self.isUploading = false
             // 可以在這裡顯示上傳結果通知
         }

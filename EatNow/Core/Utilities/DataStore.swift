@@ -1,7 +1,9 @@
 import SwiftUI
 import Foundation
+import CryptoKit
 
 // 數據儲存管理器
+@MainActor
 class DataStore: ObservableObject {
     static let shared = DataStore()
     
@@ -300,6 +302,11 @@ class DataStore: ObservableObject {
         if shops.isEmpty {
             initializeDefaultData()
         }
+        
+        // 在初始化後檢查雲端狀態
+        Task { @MainActor in
+            await checkCloudMenuStatus()
+        }
     }
     
     // 從私有方法改為公開方法，以便從設定頁面導入示範資料
@@ -436,6 +443,7 @@ class DataStore: ObservableObject {
             withAnimation(.easeInOut) {
                 let newItem = MenuItem(name: name, price: price)
                 shops[shopIndex].menuItems.append(newItem)
+                markShopAsModified(shopIndex: shopIndex)
             }
         }
     }
@@ -460,8 +468,21 @@ class DataStore: ObservableObject {
         if shopIndex >= 0 && shopIndex < shops.count {
             withAnimation(.easeInOut) {
                 shops[shopIndex].menuItems.remove(atOffsets: indexSet)
+                markShopAsModified(shopIndex: shopIndex)
             }
         }
+    }
+    
+    // 公開方法：標記店家為已修改
+    func markShopAsModified(shopIndex: Int) {
+        guard shopIndex < shops.count else { return }
+        
+        // 只有在已同步狀態下才標記為修改
+        if shops[shopIndex].cloudStatus == .synced {
+            shops[shopIndex].cloudStatus = .modified
+        }
+        // 設定修改時間
+        shops[shopIndex].lastModifiedDate = Date()
     }
 
     // 只清除店家資料的方法
@@ -571,6 +592,304 @@ class DataStore: ObservableObject {
             } else {
                 print("❌ 用戶重新註冊失敗: \(result?.message ?? "未知錯誤")")
             }
+        }
+    }
+    
+    // MARK: - 雲端菜單管理方法
+    
+    /// 生成6位數店家編號
+    private func generateShopCode() -> String {
+        return String(format: "%06d", Int.random(in: 100000...999999))
+    }
+    
+    /// 上傳單個店家菜單到雲端
+    func uploadMenuToCloud(shopIndex: Int) async -> Bool {
+        guard shopIndex < shops.count, !userID.isEmpty else { return false }
+        
+        var shop = shops[shopIndex]
+        
+        // 如果沒有店家編號，生成一個
+        if shop.shopCode == nil {
+            shop.shopCode = generateShopCode()
+        }
+        
+        // 更新狀態為上傳中
+        shops[shopIndex].cloudStatus = .uploading
+        
+        let result = await APIService.shared.uploadMenu(
+            userID: userID,
+            shopName: shop.name,
+            shopCode: shop.shopCode!,
+            menuItems: shop.menuItems
+        )
+        
+        if let response = result, response.success {
+            shops[shopIndex].cloudStatus = .synced
+            shops[shopIndex].shopCode = shop.shopCode
+            shops[shopIndex].uploadDate = Date()
+            // 清除修改时间，因為已經同步
+            shops[shopIndex].lastModifiedDate = nil
+            // 保存雲端返回的內容雜湊
+            if let contentHash = response.data?.contentHash {
+                shops[shopIndex].contentHash = contentHash
+            }
+            print("✅ 店家菜單上傳成功: \(shop.name)")
+        } else {
+            shops[shopIndex].cloudStatus = .failed
+            print("❌ 店家菜單上傳失敗: \(shop.name)")
+        }
+        
+        return result?.success ?? false
+    }
+    
+    /// 批量上傳選中的店家菜單
+    func batchUploadMenusToCloud(shopIndices: [Int]) async -> (successCount: Int, totalCount: Int) {
+        guard !userID.isEmpty else { return (0, shopIndices.count) }
+        
+        var successCount = 0
+        
+        // 更新所有選中店家的狀態為上傳中
+        for index in shopIndices {
+            if index < shops.count {
+                shops[index].cloudStatus = .uploading
+                if shops[index].shopCode == nil {
+                    shops[index].shopCode = generateShopCode()
+                }
+            }
+        }
+        
+        let selectedShops = shopIndices.compactMap { index in
+            index < shops.count ? shops[index] : nil
+        }
+        
+        let result = await APIService.shared.batchUploadMenus(userID: userID, shops: selectedShops)
+        
+        if let response = result, response.success, let data = response.data {
+            successCount = data.successCount
+            
+            // 更新成功上傳的店家狀態
+            for (i, index) in shopIndices.enumerated() {
+                if index < shops.count {
+                    if i < data.uploadedShops.count {
+                        shops[index].cloudStatus = .synced
+                        shops[index].uploadDate = Date()
+                        // 清除修改時間，因為已經同步
+                        shops[index].lastModifiedDate = nil
+                        shops[index].shopCode = data.uploadedShops[i].shopCode
+                        // 保存雲端返回的內容雜湊
+                        if let contentHash = data.uploadedShops[i].contentHash {
+                            shops[index].contentHash = contentHash
+                        }
+                    } else {
+                        shops[index].cloudStatus = .failed
+                    }
+                }
+            }
+            
+            print("✅ 批量上傳完成: \(successCount)/\(shopIndices.count)")
+        } else {
+            // 上傳失敗，重置狀態
+            for index in shopIndices {
+                if index < shops.count {
+                    shops[index].cloudStatus = .failed
+                }
+            }
+            print("❌ 批量上傳失敗")
+        }
+        
+        return (successCount, shopIndices.count)
+    }
+    
+    /// 檢查並更新所有店家的雲端狀態
+    func checkCloudMenuStatus() async {
+        guard !userID.isEmpty else { return }
+        
+        // 使用新的詳細狀態查詢 API
+        let result = await APIService.shared.getDetailedMenuStatus(userID: userID)
+        
+        if let response = result, response.success, let data = response.data {
+            // 根據雲端狀態更新本地店家狀態
+            for cloudShop in data.shops {
+                if let localShopIndex = shops.firstIndex(where: { $0.shopCode == cloudShop.shopCode }) {
+                    // 直接使用雲端返回的同步狀態
+                    switch cloudShop.syncStatus {
+                    case "synced":
+                        shops[localShopIndex].cloudStatus = .synced
+                    case "modified":
+                        shops[localShopIndex].cloudStatus = .modified
+                    case "not_synced":
+                        shops[localShopIndex].cloudStatus = .notSynced
+                    default:
+                        shops[localShopIndex].cloudStatus = .notSynced
+                    }
+                    
+                    // 更新上傳日期
+                    if cloudShop.isUploaded {
+                        if let uploadDate = ISO8601DateFormatter().date(from: cloudShop.uploadDate) {
+                            shops[localShopIndex].uploadDate = uploadDate
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    /// 重新上傳已修改的店家菜單
+    func reuploadModifiedMenu(shopIndex: Int) async -> Bool {
+        guard shopIndex < shops.count, 
+              shops[shopIndex].cloudStatus == .modified,
+              let shopCode = shops[shopIndex].shopCode,
+              !userID.isEmpty else { return false }
+        
+        let shop = shops[shopIndex]
+        
+        // 更新狀態為上傳中
+        shops[shopIndex].cloudStatus = .uploading
+        
+        let result = await APIService.shared.updateMenu(
+            userID: userID,
+            shopCode: shopCode,
+            shopName: shop.name,
+            menuItems: shop.menuItems
+        )
+        
+        switch result {
+        case .success(let response):
+            if response.success {
+                shops[shopIndex].cloudStatus = .synced
+                shops[shopIndex].uploadDate = Date()
+                // 清除修改時間，因為已經同步
+                shops[shopIndex].lastModifiedDate = nil
+                // 保存雲端返回的內容雜湊
+                if let contentHash = response.data?.contentHash {
+                    shops[shopIndex].contentHash = contentHash
+                }
+                print("✅ 店家菜單重新上傳成功: \(shop.name)")
+                return true
+            } else {
+                shops[shopIndex].cloudStatus = .failed
+                print("❌ 店家菜單重新上傳失敗: \(shop.name)")
+                return false
+            }
+        case .failure(let error):
+            shops[shopIndex].cloudStatus = .failed
+            print("❌ 店家菜單重新上傳失敗: \(shop.name) - \(error.localizedDescription)")
+            return false
+        }
+    }
+    
+    // MARK: - 菜單內容雜湊生成方法
+    
+    /// 生成菜單內容的雜湊值，用於比對菜單是否有變更
+    func generateMenuContentHash(for menuItems: [MenuItem]) -> String {
+        // 標準化排序：按名稱排序以確保一致性
+        let sortedItems = menuItems
+            .sorted { $0.name < $1.name }
+            .map { "\($0.name):\($0.price)" }
+            .joined(separator: "|")
+        
+        let data = sortedItems.data(using: .utf8) ?? Data()
+        let hash = SHA256.hash(data: data)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
+    }
+    
+    /// 比對本地菜單與雲端菜單內容是否一致
+    func verifyMenuContent(shopIndex: Int) async -> Bool {
+        guard shopIndex < shops.count,
+              let shopCode = shops[shopIndex].shopCode else { return false }
+        
+        let shop = shops[shopIndex]
+        let localHash = generateMenuContentHash(for: shop.menuItems)
+        
+        // 調用新的菜單驗證 API
+        let verificationShop = MenuVerificationShop(
+            shopCode: shopCode,
+            contentHash: localHash,
+            menuItems: shop.menuItems.map { CloudMenuItem(name: $0.name, price: $0.price) }
+        )
+        
+        let result = await APIService.shared.verifyMenuContent(
+            userID: userID,
+            shops: [verificationShop]
+        )
+        
+        if let response = result, response.success, let data = response.data {
+            return data.verificationResults.first?.isContentMatched ?? false
+        }
+        
+        return false
+    }
+    
+    // MARK: - 雲端菜單刪除方法
+    
+    /// 刪除雲端菜單
+    func deleteCloudMenu(shopCode: String) async -> (success: Bool, message: String) {
+        guard !userID.isEmpty else { 
+            return (false, "用戶編號不存在，請先在設定中創建用戶編號")
+        }
+        
+        let result = await APIService.shared.deleteMenu(shopCode: shopCode, userID: userID)
+        
+        switch result {
+        case .success(let response):
+            if response.success {
+                // 更新本地店家的雲端狀態
+                if let index = shops.firstIndex(where: { $0.shopCode == shopCode }) {
+                    shops[index].cloudStatus = .notSynced
+                    shops[index].shopCode = nil
+                    shops[index].uploadDate = nil
+                    shops[index].contentHash = nil
+                }
+                
+                return (true, response.data?.message ?? "菜單刪除成功")
+            } else {
+                return (false, response.detail ?? "刪除失敗")
+            }
+        case .failure(let error):
+            let errorMessage = APIService.shared.handleAPIError(error)
+            return (false, errorMessage)
+        }
+    }
+    
+    /// 更新雲端菜單
+    func updateCloudMenu(shopCode: String) async -> (success: Bool, message: String) {
+        guard !userID.isEmpty else { 
+            return (false, "用戶編號不存在，請先在設定中創建用戶編號")
+        }
+        
+        guard let shop = shops.first(where: { $0.shopCode == shopCode }) else {
+            return (false, "找不到對應的本地店家資料")
+        }
+        
+        let result = await APIService.shared.updateMenu(
+            userID: userID,
+            shopCode: shopCode,
+            shopName: shop.name,
+            menuItems: shop.menuItems
+        )
+        
+        switch result {
+        case .success(let response):
+            if response.success {
+                // 更新本地店家狀態
+                if let index = shops.firstIndex(where: { $0.shopCode == shopCode }) {
+                    shops[index].cloudStatus = .synced
+                    shops[index].uploadDate = Date()
+                    shops[index].lastModifiedDate = nil
+                    
+                    // 更新內容雜湊
+                    if let contentHash = response.data?.contentHash {
+                        shops[index].contentHash = contentHash
+                    }
+                }
+                
+                return (true, "菜單更新成功")
+            } else {
+                return (false, response.message ?? "更新失敗")
+            }
+        case .failure(let error):
+            let errorMessage = APIService.shared.handleAPIError(error)
+            return (false, errorMessage)
         }
     }
 }

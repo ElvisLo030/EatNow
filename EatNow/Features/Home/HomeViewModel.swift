@@ -93,6 +93,7 @@ struct UIState {
 
 // MARK: - HomeViewModel
 
+@MainActor
 class HomeViewModel: ObservableObject {
     // MARK: - 狀態屬性
     @Published var recommendationState = RecommendationState()

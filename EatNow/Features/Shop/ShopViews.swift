@@ -7,6 +7,7 @@ struct ShopListView: View {
     @State private var isSelecting = false
     @State private var selectedShops: Set<Int> = []
     @State private var showCSVImport = false
+    @State private var showCloudUpload = false
     
     // 將按鈕提取為單獨的視圖以減少複雜性
     private var controlRow: some View {
@@ -59,22 +60,58 @@ struct ShopListView: View {
                 .buttonStyle(BorderlessButtonStyle())
                 .disabled(selectedShops.isEmpty)
                 .opacity(selectedShops.isEmpty ? 0.5 : 1)
-            }
-            
-            // 在非選取模式下只顯示匯入按鈕
-            if !isSelecting {
-                // 匯入按鈕
-                Button {
-                    showCSVImport = true
-                } label: {
-                    Image(systemName: "square.and.arrow.down")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white)
-                        .frame(width: 36, height: 36)
-                        .background(Color.blue)
-                        .clipShape(Circle())
+                
+                // 雲端上傳按鈕
+                Button(action: {
+                    showCloudUpload = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "cloud.fill")
+                        Text("雲端上傳")
+                    }
+                    .font(.system(.body).weight(.regular))
+                    .foregroundColor(.blue)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.blue.opacity(0.5), lineWidth: 1)
+                    )
                 }
                 .buttonStyle(BorderlessButtonStyle())
+            }
+            
+            // 在非選取模式下顯示匯入和雲端上傳按鈕
+            if !isSelecting {
+                HStack(spacing: 12) {
+                    // 匯入按鈕
+                    Button {
+                        showCSVImport = true
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Color.blue)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
+                    
+                    // 雲端上傳按鈕
+                    Button {
+                        showCloudUpload = true
+                    } label: {
+                        Image(systemName: "cloud.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Color.green)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
+                }
             }
         }
         .padding(.vertical, 10)
@@ -123,12 +160,52 @@ struct ShopListView: View {
                 
                 Spacer()
                 
+                // 雲端狀態圖示
+                cloudStatusIcon(for: dataStore.shops[index].cloudStatus)
+                
                 Text("\(dataStore.shops[index].menuItems.count) 項商品")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 16)
+        }
+    }
+    
+    // 雲端狀態圖示
+    @ViewBuilder
+    private func cloudStatusIcon(for status: CloudSyncStatus) -> some View {
+        switch status {
+        case .notSynced:
+            Image(systemName: "cloud")
+                .foregroundColor(.gray)
+                .font(.caption)
+        case .synced:
+            Image(systemName: "cloud.fill")
+                .foregroundColor(.green)
+                .font(.caption)
+        case .modified:
+            Image(systemName: "cloud.fill")
+                .foregroundColor(.orange)
+                .overlay(
+                    Image(systemName: "exclamationmark")
+                        .foregroundColor(.white)
+                        .font(.system(size: 8, weight: .bold))
+                        .offset(x: 2, y: -2)
+                )
+        case .uploading:
+            ProgressView()
+                .scaleEffect(0.6)
+                .frame(width: 12, height: 12)
+        case .failed:
+            Image(systemName: "cloud.fill")
+                .foregroundColor(.red)
+                .overlay(
+                    Image(systemName: "xmark")
+                        .foregroundColor(.white)
+                        .font(.system(size: 6, weight: .bold))
+                        .offset(x: 1, y: -1)
+                )
         }
     }
 
@@ -164,6 +241,10 @@ struct ShopListView: View {
                 CSVImportView(importOnly: true)
                     .environmentObject(dataStore)
             }
+            .sheet(isPresented: $showCloudUpload) {
+                CloudMenuUploadView()
+                    .environmentObject(dataStore)
+            }
             .navigationDestination(for: ShopNavigationItem.self) { item in
                 switch item {
                 case .shop(let idx):
@@ -189,6 +270,8 @@ struct ShopDetailView: View {
     let shopIndex: Int
     @Binding var path: [ShopNavigationItem]
     @State private var isEditingName = false
+    @State private var showCloudUpload = false
+    @State private var isUploading = false
     @FocusState private var shopNameFieldIsFocused: Bool
 
     var body: some View {
@@ -218,6 +301,49 @@ struct ShopDetailView: View {
                                     isEditingName = true
                                     shopNameFieldIsFocused = true
                                 }
+                            }
+                        }
+                    }
+                    
+                    // 雲端狀態區塊
+                    Section(header: Text("雲端狀態")) {
+                        HStack {
+                            cloudStatusIcon(for: shop.cloudStatus)
+                            Text(cloudStatusText(for: shop.cloudStatus))
+                                .font(.subheadline)
+                            Spacer()
+                            
+                            // 上傳/重新上傳按鈕
+                            Button(action: {
+                                if shop.cloudStatus == .modified {
+                                    reuploadMenu()
+                                } else {
+                                    showCloudUpload = true
+                                }
+                            }) {
+                                HStack(spacing: 4) {
+                                    if isUploading {
+                                        ProgressView()
+                                            .scaleEffect(0.7)
+                                    } else {
+                                        Image(systemName: shop.cloudStatus == .modified ? "arrow.clockwise" : "cloud.fill")
+                                    }
+                                    Text(shop.cloudStatus == .modified ? "重新上傳" : "上傳")
+                                        .font(.caption)
+                                }
+                                .foregroundColor(.blue)
+                            }
+                            .buttonStyle(BorderlessButtonStyle())
+                            .disabled(isUploading || dataStore.userID.isEmpty)
+                        }
+                        
+                        if let uploadDate = shop.uploadDate {
+                            HStack {
+                                Image(systemName: "calendar")
+                                    .foregroundColor(.secondary)
+                                Text("上傳日期: \(uploadDate, formatter: dateFormatter)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                         }
                     }
@@ -268,6 +394,9 @@ struct ShopDetailView: View {
                         }
                         Spacer()
                         Button("確定") {
+                            if isEditingName {
+                                dataStore.markShopAsModified(shopIndex: shopIndex)
+                            }
                             isEditingName = false
                             UIApplication.shared.endEditing()
                         }
@@ -275,6 +404,98 @@ struct ShopDetailView: View {
                     .padding(.horizontal)
                 }
             }
+            .alert("上傳菜單到雲端", isPresented: $showCloudUpload) {
+                Button("取消", role: .cancel) { }
+                Button("確認上傳") {
+                    uploadMenu()
+                }
+            } message: {
+                Text("將上傳「\(shop.name)」的菜單到雲端伺服器，確定要繼續嗎？")
+            }
+        }
+    }
+    
+    // 雲端狀態圖示
+    @ViewBuilder
+    private func cloudStatusIcon(for status: CloudSyncStatus) -> some View {
+        switch status {
+        case .notSynced:
+            Image(systemName: "cloud")
+                .foregroundColor(.gray)
+        case .synced:
+            Image(systemName: "cloud.fill")
+                .foregroundColor(.green)
+        case .modified:
+            Image(systemName: "cloud.fill")
+                .foregroundColor(.orange)
+                .overlay(
+                    Image(systemName: "exclamationmark")
+                        .foregroundColor(.white)
+                        .font(.system(size: 8, weight: .bold))
+                        .offset(x: 2, y: -2)
+                )
+        case .uploading:
+            ProgressView()
+                .scaleEffect(0.8)
+        case .failed:
+            Image(systemName: "cloud.fill")
+                .foregroundColor(.red)
+                .overlay(
+                    Image(systemName: "xmark")
+                        .foregroundColor(.white)
+                        .font(.system(size: 6, weight: .bold))
+                        .offset(x: 1, y: -1)
+                )
+        }
+    }
+    
+    // 雲端狀態文字
+    private func cloudStatusText(for status: CloudSyncStatus) -> String {
+        switch status {
+        case .notSynced:
+            return "未上傳"
+        case .synced:
+            return "已同步"
+        case .modified:
+            return "已修改，需要重新上傳"
+        case .uploading:
+            return "上傳中..."
+        case .failed:
+            return "上傳失敗"
+        }
+    }
+    
+    // 日期格式化器
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }
+    
+    // 上傳菜單
+    private func uploadMenu() {
+        guard !dataStore.userID.isEmpty else { return }
+        
+        isUploading = true
+        
+        Task { @MainActor in
+            let success = await dataStore.uploadMenuToCloud(shopIndex: shopIndex)
+            self.isUploading = false
+            // 可以在這裡顯示上傳結果通知
+        }
+    }
+    
+    // 重新上傳菜單
+    private func reuploadMenu() {
+        guard !dataStore.userID.isEmpty else { return }
+        
+        isUploading = true
+        
+        Task { @MainActor in
+            let success = await dataStore.reuploadModifiedMenu(shopIndex: shopIndex)
+            self.isUploading = false
+            // 可以在這裡顯示上傳結果通知
         }
     }
 }
@@ -310,6 +531,7 @@ struct MenuItemEditView: View {
                             if let price = Int(itemPrice) {
                                 dataStore.shops[shopIndex].menuItems[itemIndex].name = itemName
                                 dataStore.shops[shopIndex].menuItems[itemIndex].price = price
+                                dataStore.markShopAsModified(shopIndex: shopIndex)
                             }
                             dismiss()
                         }
@@ -339,6 +561,7 @@ struct MenuItemEditView: View {
                             if let price = Int(itemPrice) {
                                 dataStore.shops[shopIndex].menuItems[itemIndex].name = itemName
                                 dataStore.shops[shopIndex].menuItems[itemIndex].price = price
+                                dataStore.markShopAsModified(shopIndex: shopIndex)
                             }
                             dismiss()
                             UIApplication.shared.endEditing()

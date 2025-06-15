@@ -1,12 +1,29 @@
 import SwiftUI
 import Foundation
 
+// MARK: - DateFormatter 擴展
+extension DateFormatter {
+    static let shortDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .none
+        return formatter
+    }()
+}
+
 // MARK: - 設定頁面
 struct SettingsView: View {
     @EnvironmentObject var dataStore: DataStore
     @State private var showCSVExport = false
     @State private var showDeleteConfirmation = false
     @State private var showResetStatsConfirmation = false
+    @State private var showCopySuccess = false
+    @State private var apiRetrySuccess = false
+    @State private var isCheckingConnection = false
+    @State private var isValidatingUserID = false
+    @State private var connectionStatus: String = "未知"
+    @State private var validationResult: String = ""
+    @State private var isUserIDValid: Bool? = nil // 新增：跟踪用戶ID驗證狀態
 
     var body: some View {
         NavigationView {
@@ -100,6 +117,156 @@ struct SettingsView: View {
                         }
                     }
                     
+                    // 使用者編號區塊
+                    Section(header: Text("使用者編號")) {
+                        if dataStore.userID.isEmpty {
+                            if dataStore.userName.isEmpty {
+                                HStack {
+                                    Image(systemName: "person.badge.key")
+                                        .foregroundColor(.gray)
+                                    Text("請先輸入使用者名稱以獲得專屬編號")
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                }
+                            } else {
+                                // 有名稱但沒有編號的情況
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Image(systemName: "exclamationmark.triangle")
+                                            .foregroundColor(.orange)
+                                        Text("編號生成失敗")
+                                            .foregroundColor(.orange)
+                                            .font(.caption)
+                                    }
+                                    
+                                    Button(action: {
+                                        // 重新生成編號
+                                        dataStore.userID = ""
+                                        dataStore.userCreatedDate = nil
+                                        let _ = dataStore.generateUserID()
+                                    }) {
+                                        HStack {
+                                            Image(systemName: "arrow.clockwise")
+                                            Text("重新獲取編號")
+                                        }
+                                        .foregroundColor(.blue)
+                                    }
+                                    .buttonStyle(BorderlessButtonStyle())
+                                }
+                            }
+                        } else {
+                            HStack {
+                                Image(systemName: "person.badge.key")
+                                    .foregroundColor(.blue)
+                                Text("編號")
+                                Spacer()
+                                Text(dataStore.userID)
+                                    .font(.monospaced(.body)())
+                                    .foregroundColor(.secondary)
+                                
+                                Button(action: {
+                                    UIPasteboard.general.string = dataStore.userID
+                                    showCopySuccess = true
+                                    // 添加觸感回饋
+                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                    impactFeedback.impactOccurred()
+                                }) {
+                                    Image(systemName: "doc.on.doc")
+                                        .foregroundColor(.blue)
+                                }
+                                .buttonStyle(BorderlessButtonStyle())
+                            }
+                            
+                            if let createdDate = dataStore.userCreatedDate {
+                                HStack {
+                                    Image(systemName: "calendar")
+                                        .foregroundColor(.green)
+                                    Text("建立日期")
+                                    Spacer()
+                                    Text(DateFormatter.shortDate.string(from: createdDate))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
+                            // API重新同步按鈕 - 只在驗證失敗或尚未驗證時顯示
+                            if isUserIDValid == false {
+                                Button(action: {
+                                    dataStore.retryUserIDRegistration()
+                                    apiRetrySuccess = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "arrow.triangle.2.circlepath")
+                                            .foregroundColor(.orange)
+                                        Text("重新同步到伺服器")
+                                            .foregroundColor(.orange)
+                                            .font(.caption)
+                                    }
+                                }
+                                .buttonStyle(BorderlessButtonStyle())
+                            }
+                            
+                            // 驗證用戶ID按鈕
+                            Button(action: {
+                                validateUserID()
+                            }) {
+                                HStack {
+                                    if isValidatingUserID {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                    } else {
+                                        Image(systemName: "checkmark.shield")
+                                            .foregroundColor(.green)
+                                    }
+                                    Text("驗證編號有效性")
+                                        .foregroundColor(.green)
+                                        .font(.caption)
+                                }
+                            }
+                            .buttonStyle(BorderlessButtonStyle())
+                            .disabled(isValidatingUserID)
+                            
+                            if !validationResult.isEmpty {
+                                HStack {
+                                    Image(systemName: validationResult.contains("有效") ? "checkmark.circle" : "xmark.circle")
+                                        .foregroundColor(validationResult.contains("有效") ? .green : .red)
+                                    Text(validationResult)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    
+                    // API 連線狀態區塊
+                    Section(header: Text("伺服器狀態")) {
+                        HStack {
+                            Image(systemName: "network")
+                                .foregroundColor(.blue)
+                            Text("連線狀態")
+                            Spacer()
+                            Text(connectionStatus)
+                                .foregroundColor(getConnectionStatusColor())
+                        }
+                        
+                        Button(action: {
+                            checkAPIConnection()
+                        }) {
+                            HStack {
+                                if isCheckingConnection {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                        .foregroundColor(.blue)
+                                }
+                                Text("檢查連線")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
+                        .disabled(isCheckingConnection)
+                    }
+                    
                     // 添加 Buy Me A Coffee 按鈕區塊
                     Section {
                         Link(destination: URL(string: "https://www.buymeacoffee.com/elvislo030")!) {
@@ -140,6 +307,16 @@ struct SettingsView: View {
                     CSVExportView()
                         .environmentObject(dataStore)
                 }
+                .alert("複製成功", isPresented: $showCopySuccess) {
+                    Button("確定", role: .cancel) { }
+                } message: {
+                    Text("使用者編號已複製到剪貼簿")
+                }
+                .alert("同步成功", isPresented: $apiRetrySuccess) {
+                    Button("確定", role: .cancel) { }
+                } message: {
+                    Text("使用者資料已重新同步到伺服器")
+                }
             }
         }
     }
@@ -147,6 +324,57 @@ struct SettingsView: View {
     // 檢查是否解鎖視覺特效
     private func isEffectsUnlocked() -> Bool {
         return dataStore.shouldUnlockEffects()
+    }
+    
+    // 檢查 API 連線狀態
+    private func checkAPIConnection() {
+        isCheckingConnection = true
+        connectionStatus = "檢查中..."
+        
+        Task {
+            let isConnected = await dataStore.checkAPIConnection()
+            
+            DispatchQueue.main.async {
+                self.isCheckingConnection = false
+                self.connectionStatus = isConnected ? "已連線" : "離線"
+            }
+        }
+    }
+    
+    // 驗證用戶ID
+    private func validateUserID() {
+        guard !dataStore.userID.isEmpty else {
+            validationResult = "無用戶編號"
+            isUserIDValid = false
+            return
+        }
+        
+        isValidatingUserID = true
+        validationResult = ""
+        
+        Task {
+            let isValid = await dataStore.validateUserID()
+            
+            DispatchQueue.main.async {
+                self.isValidatingUserID = false
+                self.isUserIDValid = isValid
+                self.validationResult = isValid ? "編號有效且已註冊" : "編號無效或未註冊"
+            }
+        }
+    }
+    
+    // 獲取連線狀態顏色
+    private func getConnectionStatusColor() -> Color {
+        switch connectionStatus {
+        case "已連線":
+            return .green
+        case "離線":
+            return .red
+        case "檢查中...":
+            return .orange
+        default:
+            return .gray
+        }
     }
 }
 

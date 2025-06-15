@@ -209,7 +209,16 @@ class DataStore: ObservableObject {
 
     // 使用者檔案儲存
     @Published var userName: String = "" {
-        didSet { saveUserProfile() }
+        didSet { 
+            // 當使用者名稱有值且還沒有使用者編號時，生成編號
+            if !userName.isEmpty && userID.isEmpty {
+                generateUserID()
+            } else if !userName.isEmpty && !userID.isEmpty && userName != oldValue {
+                // 如果使用者名稱改變且已有編號，調用API更新名稱
+                updateUserNameToAPI(oldName: oldValue, newName: userName)
+            }
+            saveUserProfile() 
+        }
     }
     @Published var userAvatarName: String = "" {
         didSet { saveUserProfile() }
@@ -217,6 +226,14 @@ class DataStore: ObservableObject {
     
     // 控制是否啟用特效
     @Published var effectsEnabled: Bool = false {
+        didSet { saveUserProfile() }
+    }
+    
+    // 使用者編號相關屬性
+    @Published var userID: String = "" {
+        didSet { saveUserProfile() }
+    }
+    @Published var userCreatedDate: Date? = nil {
         didSet { saveUserProfile() }
     }
     
@@ -230,20 +247,32 @@ class DataStore: ObservableObject {
         var name: String
         var avatarName: String
         var effectsEnabled: Bool = false
+        var userID: String = ""
+        var userCreatedDate: Date? = nil
     }
     
     private func loadUserProfile() {
-        guard FileManager.default.fileExists(atPath: userProfileURL.path) else { return }
+        guard FileManager.default.fileExists(atPath: userProfileURL.path) else { 
+            return 
+        }
         if let data = try? Data(contentsOf: userProfileURL),
            let decoded = try? JSONDecoder().decode(UserProfile.self, from: data) {
             userName = decoded.name
             userAvatarName = decoded.avatarName
             effectsEnabled = decoded.effectsEnabled
+            userID = decoded.userID
+            userCreatedDate = decoded.userCreatedDate
         }
     }
     
     private func saveUserProfile() {
-        let profile = UserProfile(name: userName, avatarName: userAvatarName, effectsEnabled: effectsEnabled)
+        let profile = UserProfile(
+            name: userName, 
+            avatarName: userAvatarName, 
+            effectsEnabled: effectsEnabled, 
+            userID: userID,
+            userCreatedDate: userCreatedDate
+        )
         if let data = try? JSONEncoder().encode(profile) {
             try? data.write(to: userProfileURL, options: [.atomicWrite, .completeFileProtection])
         }
@@ -265,6 +294,8 @@ class DataStore: ObservableObject {
         loadCustomFoods() // 加載自定義食物數據
         loadStatsData() // 加載統計數據
         loadAchievementData() // 加載成就數據
+        
+        // 不再自動確保使用者編號，只有在輸入使用者名稱後才會生成
         // 如果沒有數據，初始化示範數據
         if shops.isEmpty {
             initializeDefaultData()
@@ -477,4 +508,69 @@ class DataStore: ObservableObject {
     func isAchievementUnlocked(id: String) -> Bool {
         return unlockedAchievements.contains(id)
     }
-} 
+    
+    // 生成使用者編號的方法
+    @discardableResult
+    func generateUserID() -> String {
+        if userID.isEmpty {
+            userCreatedDate = Date()
+            
+            // 嘗試從API生成編號
+            Task { @MainActor in
+                if let apiGeneratedID = await generateNewUserID() {
+                    self.userID = apiGeneratedID
+                    self.saveUserProfile()
+                    
+                    // 立即註冊用戶到API
+                    Task {
+                        let result = await APIService.shared.createUser(
+                            name: self.userName,
+                            userID: self.userID,
+                            createdDate: self.userCreatedDate!
+                        )
+                        
+                        if let response = result, response.success {
+                            print("✅ 用戶註冊成功: \(self.userID)")
+                        } else {
+                            print("❌ 用戶註冊失敗: \(result?.message ?? "未知錯誤")")
+                        }
+                    }
+                } else {
+                    // API失敗時使用本地生成
+                    self.generateLocalUserID()
+                }
+            }
+            
+            // 立即返回本地生成的ID（防止UI等待）
+            generateLocalUserID()
+        }
+        return userID
+    }
+    
+    // 本地生成用戶ID的備用方法
+    private func generateLocalUserID() {
+        let characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        let newUserID = String((0..<8).map { _ in characters.randomElement()! })
+        userID = newUserID
+        userCreatedDate = Date()
+        saveUserProfile()
+        
+        // 嘗試同步到API
+        syncUserToAPI()
+    }
+    
+    // 公開方法：重新獲取使用者編號（當API記錄失敗時使用）
+    func retryUserIDRegistration() {
+        guard !userName.isEmpty, !userID.isEmpty, let createdDate = userCreatedDate else { return }
+        
+        Task {
+            let result = await APIService.shared.createUser(name: userName, userID: userID, createdDate: createdDate)
+            
+            if let response = result, response.success {
+                print("✅ 用戶重新註冊成功: \(userID)")
+            } else {
+                print("❌ 用戶重新註冊失敗: \(result?.message ?? "未知錯誤")")
+            }
+        }
+    }
+}

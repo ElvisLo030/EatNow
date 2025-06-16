@@ -14,12 +14,12 @@ struct OrderView: View {
                         .font(.system(size: 60))
                         .foregroundColor(.blue)
                     
-                    Text("開始您的點餐之旅")
+                    Text("開始點餐")
                         .font(.title2)
                         .fontWeight(.semibold)
                         .multilineTextAlignment(.center)
                     
-                    Text("選擇您喜愛的店家，享受美食")
+                    Text("選擇您喜愛的店家")
                         .font(.body)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
